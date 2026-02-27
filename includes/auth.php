@@ -56,16 +56,25 @@ $sessionOpts = [
 $sessionLifetime = $config['session_lifetime'];
 
 $rememberLifetime = $config['remember_me_lifetime'];
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login' && !empty($_POST['remember'])) {
-    $sessionOpts['cookie_lifetime'] = $rememberLifetime;
+$isRememberLogin = ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login' && !empty($_POST['remember']));
+
+// Set gc_maxlifetime BEFORE session_start (cannot be changed after)
+if ($isRememberLogin || (isset($_COOKIE[session_name()]) && !empty($_COOKIE['openmind_remember']))) {
     ini_set('session.gc_maxlifetime', $rememberLifetime);
+    $sessionOpts['cookie_lifetime'] = $rememberLifetime;
 }
 session_start($sessionOpts);
 
-// Keep remembered sessions alive
+// Keep remembered sessions alive — refresh the cookie expiry on each request
 if (!empty($_SESSION['remember'])) {
-    ini_set('session.gc_maxlifetime', $rememberLifetime);
-    setcookie(session_name(), session_id(), time() + $rememberLifetime, '/', '', isset($_SERVER['HTTPS']), true);
+    $cookieParams = [
+        'expires'  => time() + $rememberLifetime,
+        'path'     => '/',
+        'secure'   => isset($_SERVER['HTTPS']),
+        'httponly'  => true,
+        'samesite' => 'Strict',
+    ];
+    setcookie(session_name(), session_id(), $cookieParams);
 }
 
 // ── Logout ──────────────────────────────────────────────────────────────────
