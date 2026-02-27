@@ -10,7 +10,7 @@ mkdir -p "$DATA_DIR/backups"
 # ── Generate config.php from env vars on first run ─────────────────────────
 if [ ! -f "$CONFIG_FILE" ]; then
   echo ">> First run: generating config.php from environment..."
-  php -r '
+  CONFIG_FILE="$CONFIG_FILE" php -r '
     $c = [
       "workspace_path"      => getenv("OPENMIND_WORKSPACE") ?: "/workspace",
       "backup_path"         => "/app/data/backups",
@@ -26,7 +26,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
       getenv("CONFIG_FILE"),
       "<?php\nreturn " . var_export($c, true) . ";\n"
     );
-  ' CONFIG_FILE="$CONFIG_FILE"
+  '
   echo ">> config.php written"
 fi
 
