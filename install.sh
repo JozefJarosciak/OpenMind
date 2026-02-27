@@ -75,6 +75,82 @@ port_in_use() {
   (echo >/dev/tcp/localhost/"$port") &>/dev/null && return 0 || return 1
 }
 
+# Returns a human-readable description of what is using a port
+port_owner() {
+  local port="$1" _info=""
+
+  # Check if it's a Docker container
+  if command -v docker &>/dev/null; then
+    _info=$(docker ps --format '{{.Names}} (image: {{.Image}})' \
+            --filter "publish=${port}" 2>/dev/null | head -1)
+    if [ -n "$_info" ]; then
+      echo "Docker container: $_info"
+      return
+    fi
+  fi
+
+  # Try ss (most Linux systems)
+  if command -v ss &>/dev/null; then
+    _info=$(ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
+            | sed -n 's/.*users:(("\([^"]*\)",pid=\([0-9]*\).*/\1 (PID \2)/p' | head -1)
+    [ -n "$_info" ] && { echo "$_info"; return; }
+  fi
+
+  # Try lsof
+  if command -v lsof &>/dev/null; then
+    _info=$(lsof -i ":${port}" -sTCP:LISTEN -n -P 2>/dev/null \
+            | awk 'NR==2 {print $1 " (PID " $2 ")"}')
+    [ -n "$_info" ] && { echo "$_info"; return; }
+  fi
+
+  echo "unknown process"
+}
+
+# Kill whatever is using a port. Returns 0 on success.
+kill_port() {
+  local port="$1" _container _pids
+
+  # If it's a Docker container, stop it
+  if command -v docker &>/dev/null; then
+    _container=$(docker ps -q --filter "publish=${port}" 2>/dev/null | head -1)
+    if [ -n "$_container" ]; then
+      info "Stopping Docker container $_container..."
+      if [ "$DOCKER_NEEDS_SUDO" -eq 1 ] 2>/dev/null; then
+        sudo docker stop "$_container" &>/dev/null
+      else
+        docker stop "$_container" &>/dev/null
+      fi
+      sleep 1
+      port_in_use "$port" || { ok "Port $port freed"; return 0; }
+    fi
+  fi
+
+  # Kill by PID
+  if command -v lsof &>/dev/null; then
+    _pids=$(lsof -i ":${port}" -sTCP:LISTEN -t 2>/dev/null)
+  elif command -v ss &>/dev/null; then
+    _pids=$(ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
+            | grep -oP 'pid=\K[0-9]+')
+  fi
+
+  if [ -n "${_pids:-}" ]; then
+    for _p in $_pids; do
+      info "Killing PID $_p..."
+      kill "$_p" 2>/dev/null || sudo kill "$_p" 2>/dev/null || true
+    done
+    sleep 1
+    port_in_use "$port" || { ok "Port $port freed"; return 0; }
+    # Force kill if still alive
+    for _p in $_pids; do
+      kill -9 "$_p" 2>/dev/null || sudo kill -9 "$_p" 2>/dev/null || true
+    done
+    sleep 1
+    port_in_use "$port" || { ok "Port $port freed"; return 0; }
+  fi
+
+  return 1
+}
+
 find_free_port() {
   local port="${1:-8080}"
   while port_in_use "$port" || [ "$port" -eq "$OPENCLAW_GW_PORT" ]; do
@@ -82,6 +158,44 @@ find_free_port() {
     [ "$port" -gt 9999 ] && die "Could not find a free port between 8080 and 9999"
   done
   echo "$port"
+}
+
+# Interactive port selection — identifies conflicts, offers to kill or pick another
+pick_port() {
+  local _suggested
+  _suggested=$(find_free_port 8080)
+  ask DOCKER_PORT "Port for OpenMind" "$_suggested"
+
+  while true; do
+    [ "$DOCKER_PORT" -eq "$OPENCLAW_GW_PORT" ] 2>/dev/null \
+      && { warn "Port $OPENCLAW_GW_PORT is reserved for the OpenClaw gateway."; } \
+      || {
+        # Check if port is free
+        if ! port_in_use "$DOCKER_PORT"; then
+          break   # Port is available, we're done
+        fi
+
+        _owner=$(port_owner "$DOCKER_PORT")
+        warn "Port $DOCKER_PORT is in use by: $_owner"
+        printf "\n"
+        printf "    1) Free port $DOCKER_PORT (stop/kill what's using it)\n"
+        printf "    2) Pick a different port\n"
+        printf "\n"
+        ask _PORT_ACTION "Choice" "1"
+
+        if [ "$_PORT_ACTION" = "1" ]; then
+          if kill_port "$DOCKER_PORT"; then
+            break   # Port freed successfully
+          else
+            warn "Could not free port $DOCKER_PORT automatically."
+          fi
+        fi
+      }
+
+    # Re-prompt with next free port
+    _suggested=$(find_free_port "$((DOCKER_PORT + 1))")
+    ask DOCKER_PORT "Port for OpenMind" "$_suggested"
+  done
 }
 
 report_used_ports() {
@@ -213,6 +327,54 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
 
     printf "\n"
 
+    # ── Check for existing OpenMind container ──────────────────────────────
+    _existing_container=$(dkr ps -q --filter "name=openmind" 2>/dev/null || true)
+    if [ -n "$_existing_container" ]; then
+      _existing_port=$(dkr port openmind 80 2>/dev/null | sed 's/.*://' || true)
+      ok "OpenMind is already running (container: openmind, port: ${_existing_port:-?})"
+      printf "\n"
+      printf "    1) Update — rebuild image, keep existing settings\n"
+      printf "    2) Fresh install — reconfigure everything from scratch\n"
+      printf "    3) Stop — shut down the existing container and exit\n"
+      printf "\n"
+      ask _EXISTING_ACTION "Choice" "1"
+
+      case "$_EXISTING_ACTION" in
+        1)
+          info "Updating OpenMind..."
+          cd "$INSTALL_DIR"
+          dkr compose down &>/dev/null || true
+          dkr compose build 2>&1 && ok "Image rebuilt" \
+            || die "Docker build failed. Check the output above."
+          dkr compose up -d 2>&1 && ok "Container restarted" \
+            || die "Failed to start container."
+          printf "\n${GREEN}${BOLD}  OpenMind updated and running on port ${_existing_port:-8080}${NC}\n\n"
+          exit 0
+          ;;
+        3)
+          info "Stopping OpenMind..."
+          cd "$INSTALL_DIR"
+          dkr compose down 2>&1
+          ok "OpenMind stopped"
+          exit 0
+          ;;
+        *)
+          # Fresh install — stop the old one, continue with setup
+          info "Stopping existing container..."
+          cd "$INSTALL_DIR"
+          dkr compose down &>/dev/null || true
+          ok "Stopped"
+          printf "\n"
+          ;;
+      esac
+    else
+      # No running container — stop any orphaned resources from previous run
+      if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        cd "$INSTALL_DIR"
+        dkr compose down &>/dev/null 2>&1 || true
+      fi
+    fi
+
     # ── Detect OpenClaw workspace ──────────────────────────────────────────
     WORKSPACE_PATH=""
     for _dir in \
@@ -263,15 +425,7 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
     printf "\n"
 
     # ── Port ───────────────────────────────────────────────────────────────
-    _suggested=$(find_free_port 8080)
-    ask DOCKER_PORT "Port for OpenMind" "$_suggested"
-    [ "$DOCKER_PORT" -eq "$OPENCLAW_GW_PORT" ] 2>/dev/null \
-      && die "Port $OPENCLAW_GW_PORT is reserved for the OpenClaw gateway."
-    while port_in_use "$DOCKER_PORT"; do
-      warn "Port $DOCKER_PORT is already in use."
-      _suggested=$(find_free_port "$((DOCKER_PORT + 1))")
-      ask DOCKER_PORT "Pick a different port" "$_suggested"
-    done
+    pick_port
 
     # ── Admin credentials ──────────────────────────────────────────────────
     printf "\n"
@@ -335,9 +489,6 @@ ENVEOF
     # ── Build and start ────────────────────────────────────────────────────
     printf "\n"
     cd "$INSTALL_DIR"
-
-    # Stop any existing container from a previous run
-    dkr compose down &>/dev/null || true
 
     info "Building Docker image (this may take a minute on first run)..."
     if dkr compose build 2>&1; then
