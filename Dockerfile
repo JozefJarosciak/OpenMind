@@ -4,8 +4,10 @@ RUN apk add --no-cache \
     nginx \
     supervisor \
     sqlite \
+    sqlite-dev \
     && mkdir -p /run/nginx /app/backups \
-    && docker-php-ext-install pdo_sqlite
+    && php -m | grep -qi pdo_sqlite || docker-php-ext-install pdo_sqlite \
+    && php -m | grep -qi sqlite3    || docker-php-ext-install sqlite3
 
 # PHP-FPM config: listen on socket, run as www-data
 RUN sed -i 's|listen = 127.0.0.1:9000|listen = /run/php-fpm.sock|' /usr/local/etc/php-fpm.d/www.conf \

@@ -115,6 +115,9 @@ if command -v docker &>/dev/null && (docker compose version &>/dev/null 2>&1 || 
   HAS_DOCKER=1
 fi
 
+# Track whether we just installed Docker (need sudo since group not active yet)
+DOCKER_JUST_INSTALLED=0
+
 # If Docker is NOT installed, offer to install it
 if [ "$HAS_DOCKER" -eq 0 ]; then
   printf "  Docker is not installed on this machine.\n\n"
@@ -131,11 +134,10 @@ if [ "$HAS_DOCKER" -eq 0 ]; then
     fi
     if curl -fsSL https://get.docker.com | sh; then
       ok "Docker installed"
+      DOCKER_JUST_INSTALLED=1
       # Add current user to docker group if not root
       if [ "$EUID" -ne 0 ] && [ -n "${USER:-}" ]; then
         sudo usermod -aG docker "$USER" 2>/dev/null || true
-        warn "You may need to log out and back in for Docker group permissions to take effect."
-        warn "If 'docker compose' fails below, run: newgrp docker"
       fi
       HAS_DOCKER=1
     else
@@ -146,15 +148,30 @@ if [ "$HAS_DOCKER" -eq 0 ]; then
   printf "\n"
 fi
 
+# Helper: run docker commands — uses sudo if Docker was just installed (group not active)
+dkr() {
+  if [ "$DOCKER_JUST_INSTALLED" -eq 1 ] && [ "$EUID" -ne 0 ]; then
+    sudo docker "$@"
+  else
+    docker "$@"
+  fi
+}
+
 # ── Docker interactive setup ─────────────────────────────────────────────────
 if [ "$HAS_DOCKER" -eq 1 ]; then
-  ok "Docker detected"
-  printf "\n"
-  printf "  %s\n" "How would you like to install OpenMind?"
-  printf "    ${GREEN}1) Docker (recommended)${NC} — self-contained, no dependencies to install\n"
-  printf "    2) Manual — install PHP and configure directly on this machine\n"
-  printf "\n"
-  ask INSTALL_MODE "Choice" "1"
+  # If Docker was already present (not just installed), ask how to install
+  if [ "$DOCKER_JUST_INSTALLED" -eq 0 ]; then
+    ok "Docker detected"
+    printf "\n"
+    printf "  %s\n" "How would you like to install OpenMind?"
+    printf "    ${GREEN}1) Docker (recommended)${NC} — self-contained, no dependencies to install\n"
+    printf "    2) Manual — install PHP and configure directly on this machine\n"
+    printf "\n"
+    ask INSTALL_MODE "Choice" "1"
+  else
+    # We just installed Docker — user already chose Docker, go straight to setup
+    INSTALL_MODE="1"
+  fi
 
   if [ "$INSTALL_MODE" = "1" ]; then
     # ── Docker install path ────────────────────────────────────────────────
@@ -307,17 +324,17 @@ ENVEOF
     printf "\n"
     info "Building Docker image (this may take a minute on first run)..."
     cd "$INSTALL_DIR"
-    if docker compose build --quiet 2>/dev/null || docker-compose build --quiet 2>/dev/null; then
+    if dkr compose build 2>&1; then
       ok "Image built"
     else
       die "Docker build failed. Check the output above."
     fi
 
     info "Starting OpenMind..."
-    if docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null; then
+    if dkr compose up -d 2>&1; then
       ok "Container started"
     else
-      die "Failed to start container. Check: docker compose logs openmind"
+      die "Failed to start container. Run: docker compose logs openmind"
     fi
 
     OPENMIND_URL="http://localhost:$DOCKER_PORT"
@@ -358,12 +375,16 @@ except: print('')
     printf "  %-22s %s\n" "Container:"    "openmind"
     printf "\n"
     printf "  Open the URL above in your browser and log in.\n\n"
+    if [ "$DOCKER_JUST_INSTALLED" -eq 1 ] && [ "$EUID" -ne 0 ]; then
+      printf "  ${YELLOW}Note:${NC} Docker was just installed. Log out and back in (or run\n"
+      printf "  'newgrp docker') to use docker commands without sudo.\n\n"
+    fi
     printf "  ${DIM}Manage:${NC}\n"
-    printf "    Stop:      docker compose -f $INSTALL_DIR/docker-compose.yml down\n"
-    printf "    Start:     docker compose -f $INSTALL_DIR/docker-compose.yml up -d\n"
-    printf "    Logs:      docker compose -f $INSTALL_DIR/docker-compose.yml logs -f\n"
-    printf "    Rebuild:   docker compose -f $INSTALL_DIR/docker-compose.yml up -d --build\n"
-    printf "    Add user:  docker compose exec openmind php setup/manage_users.php add <username>\n"
+    printf "    Stop:      cd $INSTALL_DIR && docker compose down\n"
+    printf "    Start:     cd $INSTALL_DIR && docker compose up -d\n"
+    printf "    Logs:      cd $INSTALL_DIR && docker compose logs -f\n"
+    printf "    Rebuild:   cd $INSTALL_DIR && docker compose up -d --build\n"
+    printf "    Add user:  docker compose -f $INSTALL_DIR/docker-compose.yml exec openmind php setup/manage_users.php add <username>\n"
     printf "\n"
     exit 0
   fi
