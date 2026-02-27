@@ -9,11 +9,10 @@ RUN apk add --no-cache \
     && php -m | grep -qi pdo_sqlite || docker-php-ext-install pdo_sqlite \
     && php -m | grep -qi sqlite3    || docker-php-ext-install sqlite3
 
-# PHP-FPM config: listen on socket, run as www-data
-RUN sed -i 's|listen = 127.0.0.1:9000|listen = /run/php-fpm.sock|' /usr/local/etc/php-fpm.d/www.conf \
-    && echo "listen.owner = nginx"  >> /usr/local/etc/php-fpm.d/www.conf \
-    && echo "listen.group = nginx"  >> /usr/local/etc/php-fpm.d/www.conf \
-    && echo "listen.mode = 0660"    >> /usr/local/etc/php-fpm.d/www.conf
+# PHP-FPM config: listen on unix socket instead of TCP port 9000
+# The official php-fpm Docker image sets "listen = 9000" in docker.conf
+RUN printf '[www]\nlisten = /run/php-fpm.sock\nlisten.owner = nginx\nlisten.group = nginx\nlisten.mode = 0660\n' \
+    > /usr/local/etc/php-fpm.d/zz-openmind.conf
 
 COPY docker/nginx.conf    /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
