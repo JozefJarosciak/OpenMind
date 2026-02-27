@@ -109,12 +109,44 @@ printf "${NC}"
 printf "  %s\n" "Interactive setup — takes about 2 minutes."
 printf "  ${DIM}%s${NC}\n\n" "Safe to run alongside existing websites. Nothing is overwritten automatically."
 
-# ── Docker detection (recommended path) ───────────────────────────────────────
+# ── Docker detection ──────────────────────────────────────────────────────────
 HAS_DOCKER=0
 if command -v docker &>/dev/null && (docker compose version &>/dev/null 2>&1 || docker-compose version &>/dev/null 2>&1); then
   HAS_DOCKER=1
 fi
 
+# If Docker is NOT installed, offer to install it
+if [ "$HAS_DOCKER" -eq 0 ]; then
+  printf "  Docker is not installed on this machine.\n\n"
+  printf "  %s\n" "How would you like to install OpenMind?"
+  printf "    ${GREEN}1) Install Docker first, then use Docker (recommended)${NC}\n"
+  printf "    2) Manual — install PHP and configure directly on this machine\n"
+  printf "\n"
+  ask INSTALL_MODE "Choice" "1"
+
+  if [ "$INSTALL_MODE" = "1" ]; then
+    info "Installing Docker..."
+    if [ "$OS_TYPE" = "Darwin" ]; then
+      die "On macOS, install Docker Desktop from https://docs.docker.com/desktop/install/mac-install/ then re-run this script."
+    fi
+    if curl -fsSL https://get.docker.com | sh; then
+      ok "Docker installed"
+      # Add current user to docker group if not root
+      if [ "$EUID" -ne 0 ] && [ -n "${USER:-}" ]; then
+        sudo usermod -aG docker "$USER" 2>/dev/null || true
+        warn "You may need to log out and back in for Docker group permissions to take effect."
+        warn "If 'docker compose' fails below, run: newgrp docker"
+      fi
+      HAS_DOCKER=1
+    else
+      die "Docker installation failed. Install manually: https://docs.docker.com/get-docker/"
+    fi
+  fi
+  # If user chose "2", HAS_DOCKER stays 0, falls through to manual path
+  printf "\n"
+fi
+
+# ── Docker interactive setup ─────────────────────────────────────────────────
 if [ "$HAS_DOCKER" -eq 1 ]; then
   ok "Docker detected"
   printf "\n"
@@ -126,7 +158,7 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
 
   if [ "$INSTALL_MODE" = "1" ]; then
     # ── Docker install path ────────────────────────────────────────────────
-    printf "\n${BOLD}${BLUE}Docker Setup${NC}\n"
+    printf "\n${BOLD}${BLUE}Docker Setup${NC}\n\n"
 
     # Clone or use existing repo
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || pwd)"
@@ -155,7 +187,9 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
       fi
     fi
 
-    # Detect OpenClaw workspace
+    printf "\n"
+
+    # ── Detect OpenClaw workspace ──────────────────────────────────────────
     WORKSPACE_PATH=""
     for _dir in \
         "$HOME/.openclaw/workspace" \
@@ -172,16 +206,46 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
     fi
     [ -z "$WORKSPACE_PATH" ] && ask WORKSPACE_PATH "OpenClaw workspace path" "$HOME/.openclaw/workspace"
     [ -d "$WORKSPACE_PATH" ] || die "Directory does not exist: $WORKSPACE_PATH"
-    # Convert to absolute path
     WORKSPACE_PATH="$(cd "$WORKSPACE_PATH" && pwd)"
 
-    # Port
+    # ── Detect OpenClaw binary ─────────────────────────────────────────────
+    OPENCLAW_CMD=""
+    for _c in "$(command -v openclaw 2>/dev/null || true)" \
+        /usr/bin/openclaw /usr/local/bin/openclaw \
+        "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw" \
+        /opt/openclaw/bin/openclaw; do
+      [ -n "${_c:-}" ] && [ -x "$_c" ] && { OPENCLAW_CMD="$_c"; ok "OpenClaw binary: $_c"; break; }
+    done
+    [ -z "$OPENCLAW_CMD" ] && OPENCLAW_CMD="/usr/bin/openclaw"
+
+    # ── Detect OpenClaw agent name ─────────────────────────────────────────
+    DETECTED_AGENT="main"
+    for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
+      [ -f "$_cfg" ] || continue
+      if command -v jq &>/dev/null; then
+        _a=$(jq -r '.agent // .default_agent // .defaultAgent // ""' "$_cfg" 2>/dev/null || true)
+        [ -n "$_a" ] && { DETECTED_AGENT="$_a"; break; }
+      fi
+    done
+
+    # ── Detect run-as user ─────────────────────────────────────────────────
+    DETECTED_RUN_AS=""
+    if [ "$EUID" -eq 0 ] 2>/dev/null && id openclaw &>/dev/null 2>&1; then
+      DETECTED_RUN_AS="openclaw"
+    elif [ "$EUID" -eq 0 ] 2>/dev/null && [ -n "${SUDO_USER:-}" ]; then
+      DETECTED_RUN_AS="$SUDO_USER"
+    fi
+
+    printf "\n"
+
+    # ── Port ───────────────────────────────────────────────────────────────
     _suggested=$(find_free_port 8080)
     ask DOCKER_PORT "Port for OpenMind" "$_suggested"
     [ "$DOCKER_PORT" -eq "$OPENCLAW_GW_PORT" ] 2>/dev/null \
       && die "Port $OPENCLAW_GW_PORT is reserved for the OpenClaw gateway."
 
-    # Admin credentials
+    # ── Admin credentials ──────────────────────────────────────────────────
+    printf "\n"
     ask ADMIN_USER "Admin username" "admin"
     while true; do
       ask_secret ADMIN_PASS "Admin password (8+ chars, upper, lower, number, special)"
@@ -198,19 +262,29 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
       fi
     done
 
-    # Optional settings
-    ask APP_TITLE "App title" "OpenMind"
+    # ── Optional settings ──────────────────────────────────────────────────
+    printf "\n"
+    ask APP_TITLE        "App title"                                    "OpenMind"
+    ask OPENCLAW_AGENT   "OpenClaw agent name"                          "$DETECTED_AGENT"
+    ask OPENCLAW_RUN_AS  "Run openclaw as user (blank = container user)" "$DETECTED_RUN_AS"
 
-    # Detect openclaw binary
-    OPENCLAW_CMD=""
-    for _c in "$(command -v openclaw 2>/dev/null || true)" \
-        /usr/bin/openclaw /usr/local/bin/openclaw \
-        "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw"; do
-      [ -n "${_c:-}" ] && [ -x "$_c" ] && { OPENCLAW_CMD="$_c"; break; }
-    done
-    [ -z "$OPENCLAW_CMD" ] && OPENCLAW_CMD="/usr/bin/openclaw"
+    printf "\n  %s\n" "Network restriction:"
+    printf "    %s\n" "1) None — allow all connections"
+    printf "    %s\n" "2) Tailscale only (recommended for remote servers)"
+    printf "    %s\n" "3) Custom IP ranges (CIDR)"
+    ask NET_CHOICE "Choice" "1"
 
-    # Write .env
+    NETWORK_RESTRICTION="none"
+    ALLOWED_IPS=""
+    case "$NET_CHOICE" in
+      2) NETWORK_RESTRICTION="tailscale" ;;
+      3)
+        NETWORK_RESTRICTION="custom"
+        ask ALLOWED_IPS "Allowed CIDR ranges (comma-separated)" "192.168.1.0/24"
+        ;;
+    esac
+
+    # ── Write .env ─────────────────────────────────────────────────────────
     cat > "$INSTALL_DIR/.env" <<ENVEOF
 OPENMIND_WORKSPACE=$WORKSPACE_PATH
 OPENMIND_PORT=$DOCKER_PORT
@@ -218,10 +292,10 @@ OPENMIND_ADMIN_USER=$ADMIN_USER
 OPENMIND_ADMIN_PASS=$ADMIN_PASS
 OPENMIND_TITLE=$APP_TITLE
 OPENMIND_OPENCLAW_CMD=$OPENCLAW_CMD
-OPENMIND_OPENCLAW_AGENT=main
-OPENMIND_OPENCLAW_RUN_AS=
-OPENMIND_NETWORK=none
-OPENMIND_ALLOWED_IPS=
+OPENMIND_OPENCLAW_AGENT=$OPENCLAW_AGENT
+OPENMIND_OPENCLAW_RUN_AS=$OPENCLAW_RUN_AS
+OPENMIND_NETWORK=$NETWORK_RESTRICTION
+OPENMIND_ALLOWED_IPS=$ALLOWED_IPS
 ENVEOF
     chmod 600 "$INSTALL_DIR/.env"
     ok ".env written"
@@ -229,7 +303,8 @@ ENVEOF
     # Clear sensitive vars
     ADMIN_PASS="" ADMIN_PASS2="" 2>/dev/null || true
 
-    # Build and start
+    # ── Build and start ────────────────────────────────────────────────────
+    printf "\n"
     info "Building Docker image (this may take a minute on first run)..."
     cd "$INSTALL_DIR"
     if docker compose build --quiet 2>/dev/null || docker-compose build --quiet 2>/dev/null; then
@@ -245,22 +320,50 @@ ENVEOF
       die "Failed to start container. Check: docker compose logs openmind"
     fi
 
-    # Summary
+    OPENMIND_URL="http://localhost:$DOCKER_PORT"
+
+    # ── Tailscale (optional) ───────────────────────────────────────────────
+    HAS_TAILSCALE=0; command -v tailscale &>/dev/null && HAS_TAILSCALE=1
+    if [ "$HAS_TAILSCALE" -eq 1 ]; then
+      printf "\n"
+      if ask_yn "Expose on Tailscale (private tailnet access via HTTPS)?"; then
+        if tailscale serve --bg "http://localhost:$DOCKER_PORT" &>/dev/null; then
+          ok "Tailscale Serve configured on port $DOCKER_PORT"
+          _ts_url=$(tailscale status --json 2>/dev/null \
+            | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    name = d.get('Self', {}).get('DNSName', '').rstrip('.')
+    print('https://' + name + '/' if name else '')
+except: print('')
+" 2>/dev/null || true)
+          [ -n "${_ts_url:-}" ] && OPENMIND_URL="$_ts_url" && ok "Tailscale URL: $OPENMIND_URL"
+        else
+          warn "tailscale serve failed — try manually: tailscale serve --bg http://localhost:$DOCKER_PORT"
+        fi
+      fi
+    fi
+
+    # ── Summary ────────────────────────────────────────────────────────────
     printf "\n${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
     printf "${GREEN}${BOLD}  OpenMind installed successfully!${NC}\n"
     printf "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n\n"
-    printf "  %-22s %s\n" "URL:"          "http://localhost:$DOCKER_PORT"
+    printf "  %-22s %s\n" "URL:"          "$OPENMIND_URL"
     printf "  %-22s %s\n" "Install dir:"  "$INSTALL_DIR"
     printf "  %-22s %s\n" "Workspace:"    "$WORKSPACE_PATH"
     printf "  %-22s %s\n" "Admin user:"   "$ADMIN_USER"
+    printf "  %-22s %s\n" "Agent:"        "$OPENCLAW_AGENT"
+    printf "  %-22s %s\n" "Network:"      "$NETWORK_RESTRICTION"
     printf "  %-22s %s\n" "Container:"    "openmind"
     printf "\n"
     printf "  Open the URL above in your browser and log in.\n\n"
     printf "  ${DIM}Manage:${NC}\n"
-    printf "    Stop:    docker compose -f $INSTALL_DIR/docker-compose.yml down\n"
-    printf "    Start:   docker compose -f $INSTALL_DIR/docker-compose.yml up -d\n"
-    printf "    Logs:    docker compose -f $INSTALL_DIR/docker-compose.yml logs -f\n"
-    printf "    Rebuild: docker compose -f $INSTALL_DIR/docker-compose.yml up -d --build\n"
+    printf "    Stop:      docker compose -f $INSTALL_DIR/docker-compose.yml down\n"
+    printf "    Start:     docker compose -f $INSTALL_DIR/docker-compose.yml up -d\n"
+    printf "    Logs:      docker compose -f $INSTALL_DIR/docker-compose.yml logs -f\n"
+    printf "    Rebuild:   docker compose -f $INSTALL_DIR/docker-compose.yml up -d --build\n"
+    printf "    Add user:  docker compose exec openmind php setup/manage_users.php add <username>\n"
     printf "\n"
     exit 0
   fi
