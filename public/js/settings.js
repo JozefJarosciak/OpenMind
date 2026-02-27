@@ -170,6 +170,92 @@ document.getElementById('set-network').addEventListener('change', function() {
 });
 
 // ── Close modal on overlay click / Escape ───────────────────────────────────
+// ── Check for Updates ────────────────────────────────────────────────────
+window.checkForUpdates = function() {
+  var statusEl = document.getElementById('update-status');
+  var localEl = document.getElementById('update-local');
+  var remoteEl = document.getElementById('update-remote');
+  var applyBtn = document.getElementById('btn-apply-update');
+  var outputEl = document.getElementById('update-output');
+
+  statusEl.textContent = 'Checking for updates\u2026';
+  statusEl.className = 'update-status checking';
+  statusEl.style.display = 'block';
+  applyBtn.style.display = 'none';
+  outputEl.style.display = 'none';
+
+  fetch('?checkUpdate=1')
+    .then(function(res) { return res.json(); })
+    .then(function(r) {
+      if (!r.success) {
+        statusEl.textContent = 'Failed to check for updates';
+        statusEl.className = 'update-status update-error';
+        return;
+      }
+      localEl.textContent = r.local.hash ? r.local.hash + ' (' + (r.local.date || '').split(' ')[0] + ')' : 'unknown';
+      remoteEl.textContent = r.remote.hash ? r.remote.hash + ' (' + (r.remote.date || '').split(' ')[0] + ')' : 'unknown';
+
+      if (r.updateAvailable) {
+        statusEl.textContent = 'A new version is available!';
+        statusEl.className = 'update-status update-available';
+        applyBtn.style.display = 'inline-block';
+      } else {
+        statusEl.textContent = 'You are running the latest version.';
+        statusEl.className = 'update-status up-to-date';
+      }
+    })
+    .catch(function() {
+      statusEl.textContent = 'Network error checking for updates';
+      statusEl.className = 'update-status update-error';
+    });
+};
+
+window.applyUpdate = function() {
+  var statusEl = document.getElementById('update-status');
+  var applyBtn = document.getElementById('btn-apply-update');
+  var outputEl = document.getElementById('update-output');
+
+  if (!confirm('Apply the update now? The page will need to be refreshed afterward.')) return;
+
+  statusEl.textContent = 'Applying update\u2026';
+  statusEl.className = 'update-status checking';
+  applyBtn.style.display = 'none';
+
+  fetch(location.pathname, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'applyUpdate' })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(r) {
+    if (r.success) {
+      statusEl.textContent = r.message || 'Updated successfully!';
+      statusEl.className = 'update-status up-to-date';
+    } else {
+      statusEl.textContent = r.message || 'Update failed';
+      statusEl.className = 'update-status update-error';
+    }
+    if (r.output) {
+      outputEl.textContent = r.output;
+      outputEl.style.display = 'block';
+    }
+    // Re-check versions after update
+    fetch('?checkUpdate=1')
+      .then(function(res2) { return res2.json(); })
+      .then(function(r2) {
+        if (r2.success) {
+          document.getElementById('update-local').textContent = r2.local.hash ? r2.local.hash + ' (' + (r2.local.date || '').split(' ')[0] + ')' : 'unknown';
+          document.getElementById('update-remote').textContent = r2.remote.hash ? r2.remote.hash + ' (' + (r2.remote.date || '').split(' ')[0] + ')' : 'unknown';
+        }
+      }).catch(function() {});
+  })
+  .catch(function() {
+    statusEl.textContent = 'Network error applying update';
+    statusEl.className = 'update-status update-error';
+  });
+};
+
+// ── Close modal on overlay click / Escape ────────────────────────────────
 document.getElementById('settings-modal').addEventListener('click', function(e) {
   if (e.target === this) toggleSettings();
 });

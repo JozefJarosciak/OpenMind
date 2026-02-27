@@ -18,6 +18,16 @@ var nodeDataMap = {};
 
 // ── TUI Markdown Editor (lazy init) ─────────────────────────────────────────
 var tuiEditor = null;
+function resetEditorScroll() {
+  requestAnimationFrame(function() {
+    var ww = document.querySelector('#panel-editor .toastui-editor-ww-container');
+    if (ww) ww.scrollTop = 0;
+    var md = document.querySelector('#panel-editor .toastui-editor-md-container .toastui-editor');
+    if (md) md.scrollTop = 0;
+    var pb = document.getElementById('panel-body');
+    if (pb) pb.scrollTop = 0;
+  });
+}
 function ensureEditor(cb) {
   if (tuiEditor) { cb(); return; }
   requestAnimationFrame(function() {
@@ -195,6 +205,7 @@ function openPanel(node) {
       var text = summary.join('\n');
       tuiEditor.setMarkdown(text);
       panelOriginalContent = text;
+      resetEditorScroll();
       return;
     }
 
@@ -210,11 +221,13 @@ function openPanel(node) {
         .then(function(d) {
           tuiEditor.setMarkdown(d.content || '');
           panelOriginalContent = d.content || '';
+          resetEditorScroll();
         });
     } else {
       var content = data.fullBody || data.body || '';
       tuiEditor.setMarkdown(content);
       panelOriginalContent = content;
+      resetEditorScroll();
     }
   });
 }

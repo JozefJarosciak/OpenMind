@@ -66,3 +66,15 @@
 .settings-pane{display:none}
 .settings-pane.active{display:block}
 .field-hint{font-size:.72rem;color:var(--path-fg);margin-top:.2rem;opacity:.7}
+
+/* === Update Tab === */
+.update-info{margin-bottom:1rem}
+.update-row{display:flex;justify-content:space-between;padding:.4rem 0;border-bottom:1px solid var(--border)}
+.update-label{font-size:.82rem;color:var(--path-fg)}
+.update-val{font-size:.82rem;font-family:monospace;color:var(--fg)}
+.update-status{margin-top:.6rem;font-size:.82rem;padding:.5rem .7rem;border-radius:6px}
+.update-status.up-to-date{background:#a6e3a122;color:#a6e3a1;border:1px solid #a6e3a144}
+.update-status.update-available{background:#f9e2af22;color:#f9e2af;border:1px solid #f9e2af44}
+.update-status.update-error{background:#f38ba822;color:#f38ba8;border:1px solid #f38ba844}
+.update-status.checking{background:var(--input-bg);color:var(--path-fg);border:1px solid var(--border)}
+.update-output{margin-top:.8rem;font-size:.75rem;font-family:monospace;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;color:var(--path-fg)}

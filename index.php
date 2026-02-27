@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($action === 'saveSettings') {
+    if ($action === 'saveSettings' || $action === 'applyUpdate') {
         require __DIR__ . '/includes/settings-api.php';
         exit;
     }
@@ -60,7 +60,7 @@ if (isset($_GET['file']) || isset($_GET['refreshFile'])) {
     exit;
 }
 
-if (isset($_GET['getSettings'])) {
+if (isset($_GET['getSettings']) || isset($_GET['checkUpdate'])) {
     require __DIR__ . '/includes/settings-api.php';
     exit;
 }
@@ -177,6 +177,7 @@ $workspacePath = $config['workspace_path'];
         <button class="settings-tab" data-stab="openclaw" onclick="switchSettingsTab('openclaw')">OpenClaw</button>
         <button class="settings-tab" data-stab="security" onclick="switchSettingsTab('security')">Security</button>
         <button class="settings-tab" data-stab="app" onclick="switchSettingsTab('app')">App</button>
+        <button class="settings-tab" data-stab="update" onclick="switchSettingsTab('update')">Update</button>
       </div>
 
       <div id="settings-msg"></div>
@@ -272,6 +273,27 @@ $workspacePath = $config['workspace_path'];
           <div class="field-hint">How long login sessions last (default: 86400 = 24 hours)</div>
         </div>
         <button class="modal-btn" onclick="saveSettings()">Save App Settings</button>
+      </div>
+
+      <!-- Update Tab -->
+      <div id="stab-update" class="settings-pane">
+        <h3>Software Update</h3>
+        <div id="update-info" class="update-info">
+          <div class="update-row">
+            <span class="update-label">Installed version:</span>
+            <span id="update-local" class="update-val">—</span>
+          </div>
+          <div class="update-row">
+            <span class="update-label">Latest version:</span>
+            <span id="update-remote" class="update-val">—</span>
+          </div>
+          <div id="update-status" class="update-status"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="modal-btn" onclick="checkForUpdates()">Check for Updates</button>
+          <button class="modal-btn" id="btn-apply-update" onclick="applyUpdate()" style="display:none">Apply Update</button>
+        </div>
+        <div id="update-output" class="update-output" style="display:none"></div>
       </div>
     </div>
   </div>

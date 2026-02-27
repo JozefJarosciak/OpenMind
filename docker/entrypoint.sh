@@ -57,6 +57,18 @@ if [ -f "$AUTH_DB" ] && [ ! -L /app/auth.db ]; then
   ln -sf "$AUTH_DB" /app/auth.db
 fi
 
+# ── Initialize git repo for update checks ─────────────────────────────────
+if [ ! -d /app/.git ]; then
+  echo ">> Initializing git repo for update checks..."
+  cd /app
+  git init -b main
+  git remote add origin https://github.com/JozefJarosciak/OpenMind.git
+  git fetch --depth=1 origin main 2>/dev/null || true
+  git reset --soft origin/main 2>/dev/null || true
+  cd /
+  echo ">> Git repo initialized"
+fi
+
 # ── Fix permissions ────────────────────────────────────────────────────────
 chown -R www-data:www-data "$DATA_DIR"
 chmod 600 "$AUTH_DB" 2>/dev/null || true

@@ -5,6 +5,7 @@ RUN apk add --no-cache \
     supervisor \
     sqlite \
     sqlite-dev \
+    git \
     && mkdir -p /run/nginx /app/backups \
     && php -m | grep -qi pdo_sqlite || docker-php-ext-install pdo_sqlite \
     && php -m | grep -qi sqlite3    || docker-php-ext-install sqlite3

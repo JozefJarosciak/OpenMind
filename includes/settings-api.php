@@ -30,6 +30,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['getSettings'])) {
     exit;
 }
 
+// ── GET: Check for updates ──────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['checkUpdate'])) {
+    // Get local commit hash
+    $appDir = dirname(__DIR__);
+    $localHash = trim(shell_exec("git -C " . escapeshellarg($appDir) . " rev-parse HEAD 2>/dev/null") ?: '');
+    $localShort = substr($localHash, 0, 7);
+    $localDate = trim(shell_exec("git -C " . escapeshellarg($appDir) . " log -1 --format=%ci 2>/dev/null") ?: '');
+
+    // Get remote latest commit
+    $remoteHash = '';
+    $remoteDate = '';
+    $updateAvailable = false;
+
+    // Fetch latest from remote without pulling
+    shell_exec("git -C " . escapeshellarg($appDir) . " fetch origin main --quiet 2>/dev/null");
+    $remoteHash = trim(shell_exec("git -C " . escapeshellarg($appDir) . " rev-parse origin/main 2>/dev/null") ?: '');
+    $remoteShort = substr($remoteHash, 0, 7);
+    $remoteDate = trim(shell_exec("git -C " . escapeshellarg($appDir) . " log -1 --format=%ci origin/main 2>/dev/null") ?: '');
+
+    if ($localHash && $remoteHash && $localHash !== $remoteHash) {
+        $updateAvailable = true;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'local'   => ['hash' => $localShort, 'date' => $localDate],
+        'remote'  => ['hash' => $remoteShort, 'date' => $remoteDate],
+        'updateAvailable' => $updateAvailable,
+    ]);
+    exit;
+}
+
+// ── POST: Apply update ─────────────────────────────────────────────────────
+$rawInput = file_get_contents('php://input');
+$input = @json_decode($rawInput, true) ?: [];
+
+if (($input['action'] ?? '') === 'applyUpdate') {
+    $appDir = dirname(__DIR__);
+    $isDocker = file_exists('/.dockerenv') || file_exists('/app/data');
+
+    if ($isDocker) {
+        // Inside Docker — can only pull code, container rebuild needed from host
+        $output = shell_exec("git -C " . escapeshellarg($appDir) . " pull --ff-only origin main 2>&1");
+        $ok = strpos($output, 'Already up to date') !== false || strpos($output, 'Fast-forward') !== false;
+        echo json_encode([
+            'success' => $ok,
+            'output'  => trim($output),
+            'message' => $ok
+                ? 'Code updated. Refresh the page to see changes. If the update includes Docker/config changes, rebuild the container from the host.'
+                : 'Update failed. You may need to rebuild from the host: cd ~/openmind && git pull && docker compose up -d --build',
+        ]);
+    } else {
+        // Bare metal — just pull
+        $output = shell_exec("git -C " . escapeshellarg($appDir) . " pull --ff-only origin main 2>&1");
+        $ok = strpos($output, 'Already up to date') !== false || strpos($output, 'Fast-forward') !== false;
+        echo json_encode([
+            'success' => $ok,
+            'output'  => trim($output),
+            'message' => $ok ? 'Updated successfully. Refresh the page.' : 'Update failed: ' . trim($output),
+        ]);
+    }
+    exit;
+}
+
 // ── POST: Save settings ─────────────────────────────────────────────────────
 $rawInput = file_get_contents('php://input');
 $input = @json_decode($rawInput, true) ?: [];
