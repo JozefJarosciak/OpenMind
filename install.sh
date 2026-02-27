@@ -81,7 +81,7 @@ port_owner() {
 
   # Check if it's a Docker container
   if command -v docker &>/dev/null; then
-    _info=$(docker ps --format '{{.Names}} (image: {{.Image}})' \
+    _info=$(dkr ps --format '{{.Names}} (image: {{.Image}})' \
             --filter "publish=${port}" 2>/dev/null | head -1)
     if [ -n "$_info" ]; then
       echo "Docker container: $_info"
@@ -89,16 +89,16 @@ port_owner() {
     fi
   fi
 
-  # Try ss (most Linux systems)
+  # Try ss with sudo (docker-proxy runs as root)
   if command -v ss &>/dev/null; then
-    _info=$(ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
+    _info=$(sudo ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
             | sed -n 's/.*users:(("\([^"]*\)",pid=\([0-9]*\).*/\1 (PID \2)/p' | head -1)
     [ -n "$_info" ] && { echo "$_info"; return; }
   fi
 
-  # Try lsof
+  # Try lsof with sudo
   if command -v lsof &>/dev/null; then
-    _info=$(lsof -i ":${port}" -sTCP:LISTEN -n -P 2>/dev/null \
+    _info=$(sudo lsof -i ":${port}" -sTCP:LISTEN -n -P 2>/dev/null \
             | awk 'NR==2 {print $1 " (PID " $2 ")"}')
     [ -n "$_info" ] && { echo "$_info"; return; }
   fi
@@ -112,39 +112,50 @@ kill_port() {
 
   # If it's a Docker container, stop it
   if command -v docker &>/dev/null; then
-    _container=$(docker ps -q --filter "publish=${port}" 2>/dev/null | head -1)
+    _container=$(dkr ps -q --filter "publish=${port}" 2>/dev/null | head -1)
     if [ -n "$_container" ]; then
       info "Stopping Docker container $_container..."
-      if [ "$DOCKER_NEEDS_SUDO" -eq 1 ] 2>/dev/null; then
-        sudo docker stop "$_container" &>/dev/null
-      else
-        docker stop "$_container" &>/dev/null
-      fi
+      dkr stop "$_container" &>/dev/null || true
+      dkr rm -f "$_container" &>/dev/null || true
       sleep 1
       port_in_use "$port" || { ok "Port $port freed"; return 0; }
     fi
   fi
 
-  # Kill by PID
+  # Find PIDs holding the port (use sudo for root-owned processes like docker-proxy)
+  _pids=""
   if command -v lsof &>/dev/null; then
-    _pids=$(lsof -i ":${port}" -sTCP:LISTEN -t 2>/dev/null)
-  elif command -v ss &>/dev/null; then
-    _pids=$(ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
-            | grep -oP 'pid=\K[0-9]+')
+    _pids=$(sudo lsof -i ":${port}" -sTCP:LISTEN -t 2>/dev/null || lsof -i ":${port}" -sTCP:LISTEN -t 2>/dev/null || true)
+  fi
+  if [ -z "$_pids" ] && command -v ss &>/dev/null; then
+    _pids=$(sudo ss -lntp 2>/dev/null | grep ":${port}[[:space:]]" \
+            | grep -oP 'pid=\K[0-9]+' || true)
+  fi
+  # Also look for docker-proxy specifically
+  if [ -z "$_pids" ]; then
+    _pids=$(pgrep -f "docker-proxy.*:${port}" 2>/dev/null || true)
   fi
 
   if [ -n "${_pids:-}" ]; then
     for _p in $_pids; do
       info "Killing PID $_p..."
-      kill "$_p" 2>/dev/null || sudo kill "$_p" 2>/dev/null || true
+      sudo kill "$_p" 2>/dev/null || kill "$_p" 2>/dev/null || true
     done
     sleep 1
     port_in_use "$port" || { ok "Port $port freed"; return 0; }
     # Force kill if still alive
     for _p in $_pids; do
-      kill -9 "$_p" 2>/dev/null || sudo kill -9 "$_p" 2>/dev/null || true
+      sudo kill -9 "$_p" 2>/dev/null || kill -9 "$_p" 2>/dev/null || true
     done
     sleep 1
+    port_in_use "$port" || { ok "Port $port freed"; return 0; }
+  fi
+
+  # Last resort: restart Docker daemon to release all ghost port bindings
+  if port_in_use "$port"; then
+    info "Restarting Docker daemon to release orphaned port bindings..."
+    sudo systemctl restart docker 2>/dev/null || sudo service docker restart 2>/dev/null || true
+    sleep 2
     port_in_use "$port" || { ok "Port $port freed"; return 0; }
   fi
 
@@ -327,23 +338,53 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
 
     printf "\n"
 
+    # ── Thorough Docker cleanup helper ──────────────────────────────────────
+    docker_full_cleanup() {
+      local _dir="${1:-$INSTALL_DIR}"
+
+      # 1. docker compose down (removes container, network, etc.)
+      if [ -f "$_dir/docker-compose.yml" ]; then
+        cd "$_dir"
+        dkr compose down --remove-orphans &>/dev/null 2>&1 || true
+      fi
+
+      # 2. Force-remove the container by name if it's still lingering
+      dkr rm -f openmind &>/dev/null 2>&1 || true
+
+      # 3. Remove any stopped containers from this project
+      dkr container prune -f &>/dev/null 2>&1 || true
+
+      # 4. Clean up orphaned networks that might hold port bindings
+      dkr network prune -f &>/dev/null 2>&1 || true
+
+      # 5. Small pause for Docker daemon to release port bindings
+      sleep 1
+    }
+
     # ── Check for existing OpenMind container ──────────────────────────────
-    _existing_container=$(dkr ps -q --filter "name=openmind" 2>/dev/null || true)
+    _existing_container=$(dkr ps -a -q --filter "name=openmind" 2>/dev/null || true)
     if [ -n "$_existing_container" ]; then
+      _running=$(dkr ps -q --filter "name=openmind" 2>/dev/null || true)
       _existing_port=$(dkr port openmind 80 2>/dev/null | sed 's/.*://' || true)
-      ok "OpenMind is already running (container: openmind, port: ${_existing_port:-?})"
+
+      if [ -n "$_running" ]; then
+        ok "OpenMind is running (container: openmind, port: ${_existing_port:-?})"
+      else
+        warn "OpenMind container exists but is not running (crashed or stopped)"
+      fi
+
       printf "\n"
       printf "    1) Update — rebuild image, keep existing settings\n"
       printf "    2) Fresh install — reconfigure everything from scratch\n"
-      printf "    3) Stop — shut down the existing container and exit\n"
+      printf "    3) Stop — shut down and exit\n"
       printf "\n"
       ask _EXISTING_ACTION "Choice" "1"
 
       case "$_EXISTING_ACTION" in
         1)
           info "Updating OpenMind..."
+          docker_full_cleanup "$INSTALL_DIR"
           cd "$INSTALL_DIR"
-          dkr compose down &>/dev/null || true
           dkr compose build 2>&1 && ok "Image rebuilt" \
             || die "Docker build failed. Check the output above."
           dkr compose up -d 2>&1 && ok "Container restarted" \
@@ -353,26 +394,21 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
           ;;
         3)
           info "Stopping OpenMind..."
-          cd "$INSTALL_DIR"
-          dkr compose down 2>&1
+          docker_full_cleanup "$INSTALL_DIR"
           ok "OpenMind stopped"
           exit 0
           ;;
         *)
-          # Fresh install — stop the old one, continue with setup
-          info "Stopping existing container..."
-          cd "$INSTALL_DIR"
-          dkr compose down &>/dev/null || true
-          ok "Stopped"
+          # Fresh install — full cleanup, then continue with setup
+          info "Cleaning up existing installation..."
+          docker_full_cleanup "$INSTALL_DIR"
+          ok "Cleaned up"
           printf "\n"
           ;;
       esac
     else
-      # No running container — stop any orphaned resources from previous run
-      if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
-        cd "$INSTALL_DIR"
-        dkr compose down &>/dev/null 2>&1 || true
-      fi
+      # No container at all — still do a cleanup to clear orphaned networks/ports
+      docker_full_cleanup "$INSTALL_DIR" 2>/dev/null
     fi
 
     # ── Detect OpenClaw workspace ──────────────────────────────────────────
@@ -497,11 +533,51 @@ ENVEOF
       die "Docker build failed. Check the output above."
     fi
 
+    # Verify port is actually free right before starting
+    if port_in_use "$DOCKER_PORT"; then
+      warn "Port $DOCKER_PORT became occupied during build."
+      _owner=$(port_owner "$DOCKER_PORT")
+      info "In use by: $_owner"
+      info "Attempting to free port $DOCKER_PORT..."
+      kill_port "$DOCKER_PORT" || true
+      sleep 1
+      if port_in_use "$DOCKER_PORT"; then
+        warn "Could not free port $DOCKER_PORT."
+        _suggested=$(find_free_port "$((DOCKER_PORT + 1))")
+        ask DOCKER_PORT "Pick a different port" "$_suggested"
+        # Rewrite .env with new port
+        sed -i "s/^OPENMIND_PORT=.*/OPENMIND_PORT=$DOCKER_PORT/" "$INSTALL_DIR/.env"
+        ok "Updated .env with port $DOCKER_PORT"
+      fi
+    fi
+
     info "Starting OpenMind..."
-    if dkr compose up -d 2>&1; then
+    _up_output=$(dkr compose up -d 2>&1) && _up_ok=true || _up_ok=false
+    if [ "$_up_ok" = true ]; then
       ok "Container started"
     else
-      die "Failed to start container. Run: docker compose logs openmind"
+      echo "$_up_output"
+      # Check if it's a port conflict
+      if echo "$_up_output" | grep -qi "address already in use\|port is already allocated"; then
+        warn "Port $DOCKER_PORT is still in use. Cleaning up and retrying..."
+        docker_full_cleanup "$INSTALL_DIR"
+        kill_port "$DOCKER_PORT" 2>/dev/null || true
+        sleep 2
+        if port_in_use "$DOCKER_PORT"; then
+          _suggested=$(find_free_port "$((DOCKER_PORT + 1))")
+          warn "Port $DOCKER_PORT cannot be freed."
+          ask DOCKER_PORT "Pick a different port" "$_suggested"
+          sed -i "s/^OPENMIND_PORT=.*/OPENMIND_PORT=$DOCKER_PORT/" "$INSTALL_DIR/.env"
+        fi
+        info "Retrying on port $DOCKER_PORT..."
+        if dkr compose up -d 2>&1; then
+          ok "Container started"
+        else
+          die "Still failing. Try rebooting and re-running the installer, or pick a different port:\n  Edit $INSTALL_DIR/.env and change OPENMIND_PORT, then run:\n  cd $INSTALL_DIR && docker compose up -d"
+        fi
+      else
+        die "Failed to start container. Check the error above.\n  Logs: cd $INSTALL_DIR && docker compose logs openmind"
+      fi
     fi
 
     OPENMIND_URL="http://localhost:$DOCKER_PORT"
