@@ -6,93 +6,131 @@ Interactive mindmap workspace viewer for [OpenClaw](https://openclaw.ai). Turns 
 
 ---
 
-## Quick Start (Docker)
+## Installation
 
-The fastest way to run OpenMind. Requires only [Docker](https://docs.docker.com/get-docker/).
+OpenMind runs anywhere Docker runs. Pick your OS below.
 
-```bash
-git clone https://github.com/JozefJarosciak/OpenMind.git
-cd OpenMind
-cp .env.example .env
-# Edit .env: set OPENMIND_WORKSPACE and OPENMIND_ADMIN_PASS
-docker compose up -d
-# Open http://localhost:8080
-```
+### Linux (Ubuntu, Debian, Fedora, Arch, etc.)
 
-That's it. Nginx, PHP, and SQLite are all inside the container. Your data (auth database, config, backups) persists in a Docker volume across restarts.
-
-### Docker environment variables
-
-Edit `.env` before first run. Only `OPENMIND_ADMIN_PASS` and `OPENMIND_WORKSPACE` are required:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENMIND_WORKSPACE` | `/root/.openclaw/workspace` | Host path to your OpenClaw workspace |
-| `OPENMIND_ADMIN_PASS` | *(required)* | Admin password (8+ chars, upper, lower, number, special) |
-| `OPENMIND_ADMIN_USER` | `admin` | Admin username |
-| `OPENMIND_PORT` | `8080` | Host port to expose |
-| `OPENMIND_TITLE` | `OpenMind` | App title |
-| `OPENMIND_OPENCLAW_CMD` | `/usr/bin/openclaw` | Path to openclaw binary inside the container |
-| `OPENMIND_OPENCLAW_AGENT` | `main` | Which OpenClaw agent to use for chat |
-| `OPENMIND_OPENCLAW_RUN_AS` | *(empty)* | Run openclaw as this user via `sudo -u` |
-| `OPENMIND_NETWORK` | `none` | Network restriction: `none`, `tailscale`, or `custom` |
-| `OPENMIND_ALLOWED_IPS` | *(empty)* | Comma-separated CIDRs for `custom` mode |
-
-### Docker management
-
-```bash
-docker compose logs -f openmind   # View logs
-docker compose down               # Stop (data persists in volume)
-docker compose up -d              # Restart
-docker compose down -v            # Stop and delete all data
-docker compose build --no-cache   # Rebuild after updates
-```
-
----
-
-## Alternative: Interactive Installer
-
-If you prefer a guided setup (also supports Docker), download and run the installer:
+**Option A — One-line interactive installer (recommended)**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/JozefJarosciak/OpenMind/main/install.sh -o install.sh
 bash install.sh
 ```
 
-The installer auto-detects Docker and offers it as the recommended path. If Docker isn't available, it walks you through a bare-metal PHP setup.
+The installer will:
+- Install Docker for you if it's not already installed
+- Auto-detect your OpenClaw workspace, binary, and agent
+- Walk you through port, admin credentials, network restriction, and app title
+- Build and start the container — ready in about a minute
+
+**Option B — Manual Docker setup**
+
+```bash
+# 1. Install Docker (skip if already installed)
+curl -fsSL https://get.docker.com | sh
+
+# 2. Clone and configure
+git clone https://github.com/JozefJarosciak/OpenMind.git
+cd OpenMind
+cp .env.example .env
+nano .env   # Set OPENMIND_WORKSPACE and OPENMIND_ADMIN_PASS
+
+# 3. Start
+docker compose up -d
+
+# 4. Open http://localhost:8080
+```
 
 ---
 
-## Alternative: Manual (Bare Metal) Installation
+### macOS
 
-For environments where you want to run PHP directly on the host.
+**Option A — Interactive installer**
 
-### Requirements
+```bash
+curl -fsSL https://raw.githubusercontent.com/JozefJarosciak/OpenMind/main/install.sh -o install.sh
+bash install.sh
+```
+
+> Requires [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/) — the installer will tell you if it's missing.
+
+**Option B — Manual Docker setup**
+
+1. Install [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/) and start it
+2. Then:
+
+```bash
+git clone https://github.com/JozefJarosciak/OpenMind.git
+cd OpenMind
+cp .env.example .env
+nano .env   # Set OPENMIND_WORKSPACE and OPENMIND_ADMIN_PASS
+docker compose up -d
+# Open http://localhost:8080
+```
+
+---
+
+### Windows
+
+Docker Desktop provides full Linux container support on Windows. Two ways to run it:
+
+**Option A — WSL terminal (recommended)**
+
+1. Install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) if you haven't:
+   ```powershell
+   wsl --install
+   ```
+2. Install [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/) — enable the WSL 2 backend during setup
+3. Open a WSL terminal (Ubuntu) and run:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/JozefJarosciak/OpenMind/main/install.sh -o install.sh
+   bash install.sh
+   ```
+4. Open `http://localhost:8080` in your Windows browser
+
+**Option B — PowerShell / CMD**
+
+1. Install [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/) and start it
+2. Open PowerShell or CMD:
+   ```powershell
+   git clone https://github.com/JozefJarosciak/OpenMind.git
+   cd OpenMind
+   copy .env.example .env
+   # Edit .env with notepad: set OPENMIND_WORKSPACE and OPENMIND_ADMIN_PASS
+   notepad .env
+   docker compose up -d
+   # Open http://localhost:8080
+   ```
+
+> **Note:** The interactive installer (`install.sh`) requires a bash shell. On Windows, use it inside WSL. The manual `docker compose` approach works from any terminal.
+
+---
+
+### Bare Metal (no Docker)
+
+For environments where you want to run PHP directly on the host without Docker.
+
+<details>
+<summary>Click to expand bare metal instructions</summary>
+
+#### Requirements
 
 - PHP 8.0+ with SQLite3 extension
 - Nginx or Apache web server (or `php -S localhost:8080` for dev)
-- [OpenClaw](https://openclaw.ai) installed (for chat and workspace files)
+- [OpenClaw](https://openclaw.ai) installed
 
-No Node.js. No npm. No Composer. No bundler. Frontend dependencies load from CDN:
-- [jsMind v0.9.1](https://github.com/hizzgdev/jsmind) — mindmap
-- [Toast UI Editor v3](https://github.com/nhn/tui.editor) — WYSIWYG markdown editor
+No Node.js, npm, Composer, or bundler needed. Frontend dependencies load from CDN.
 
-### Platform support
+#### Prerequisites by platform
 
-| Platform | Notes |
-|---|---|
-| **Linux** | Tested on Ubuntu, Debian, RHEL/Fedora, Arch |
-| **macOS** | Detects Homebrew PHP automatically |
-| **Windows (WSL)** | Run inside [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) — identical to Linux |
-
-### Prerequisites by platform
-
-**Linux (Ubuntu/Debian)**
+**Ubuntu / Debian**
 ```bash
 sudo apt install php-cli php-sqlite3 git
 ```
 
-**Linux (RHEL/Fedora)**
+**RHEL / Fedora**
 ```bash
 sudo dnf install php php-pdo git
 ```
@@ -102,40 +140,29 @@ sudo dnf install php php-pdo git
 brew install php git
 ```
 
-### Steps
+**Windows** — Use WSL and follow the Linux steps above.
 
-#### 1. Clone the repository
+#### Steps
 
 ```bash
+# 1. Clone
 git clone https://github.com/JozefJarosciak/OpenMind.git /opt/openmind
 cd /opt/openmind
-```
 
-#### 2. Configure
-
-```bash
+# 2. Configure (or skip — the setup wizard will guide you on first browser visit)
 cp config.sample.php config.php
-```
+# Edit config.php: set workspace_path at minimum
 
-Edit `config.php` and set at minimum:
-
-```php
-'workspace_path' => '/home/youruser/.openclaw/workspace',
-```
-
-Or skip manual config — the first-run setup wizard will guide you when you open the app in a browser.
-
-#### 3. Create a user
-
-```bash
+# 3. Create admin user
 php setup/manage_users.php add admin YourPassword123!
+
+# 4. Start the server
+php -S 0.0.0.0:8080 -t /opt/openmind
+
+# 5. Open http://localhost:8080
 ```
 
-#### 4. Set up your web server
-
-**Important:** OpenMind should run on its own port or virtual host. Do not place it inside an existing site's document root.
-
-##### Nginx (new virtual host)
+#### Nginx (production)
 
 ```nginx
 server {
@@ -163,13 +190,7 @@ server {
 
 Place in `/etc/nginx/sites-available/openmind`, symlink to `sites-enabled/`, then `nginx -t && systemctl reload nginx`.
 
-##### PHP built-in server (dev or simple personal use)
-
-```bash
-php -S 0.0.0.0:8080 -t /opt/openmind
-```
-
-#### 5. Set permissions
+#### Permissions
 
 ```bash
 chown -R www-data:www-data /opt/openmind
@@ -177,9 +198,64 @@ chmod 750 /opt/openmind
 chmod 640 /opt/openmind/config.php
 ```
 
-#### 6. Open in browser
+</details>
 
-Navigate to your server's URL and log in with the user you created.
+---
+
+## Docker Environment Variables
+
+Edit `.env` before first run. Only `OPENMIND_ADMIN_PASS` and `OPENMIND_WORKSPACE` are required:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENMIND_WORKSPACE` | `/root/.openclaw/workspace` | Host path to your OpenClaw workspace |
+| `OPENMIND_ADMIN_PASS` | *(required)* | Admin password (8+ chars, upper, lower, number, special) |
+| `OPENMIND_ADMIN_USER` | `admin` | Admin username |
+| `OPENMIND_PORT` | `8080` | Host port to expose |
+| `OPENMIND_TITLE` | `OpenMind` | App title |
+| `OPENMIND_OPENCLAW_CMD` | `/usr/bin/openclaw` | Path to openclaw binary inside the container |
+| `OPENMIND_OPENCLAW_AGENT` | `main` | Which OpenClaw agent to use for chat |
+| `OPENMIND_OPENCLAW_RUN_AS` | *(empty)* | Run openclaw as this user via `sudo -u` |
+| `OPENMIND_NETWORK` | `none` | Network restriction: `none`, `tailscale`, or `custom` |
+| `OPENMIND_ALLOWED_IPS` | *(empty)* | Comma-separated CIDRs for `custom` mode |
+
+---
+
+## Managing Your Installation
+
+### Docker commands
+
+```bash
+docker compose logs -f openmind   # View logs
+docker compose down               # Stop (data persists in volume)
+docker compose up -d              # Restart
+docker compose down -v            # Stop and delete all data
+docker compose build --no-cache   # Rebuild after updates
+```
+
+### User management
+
+```bash
+# Docker
+docker compose exec openmind php setup/manage_users.php add alice
+docker compose exec openmind php setup/manage_users.php list
+docker compose exec openmind php setup/manage_users.php passwd alice
+docker compose exec openmind php setup/manage_users.php remove alice
+
+# Bare metal
+php setup/manage_users.php add alice
+php setup/manage_users.php list
+php setup/manage_users.php passwd alice
+php setup/manage_users.php remove alice
+```
+
+### Updating
+
+```bash
+cd OpenMind
+git pull
+docker compose up -d --build
+```
 
 ---
 
@@ -293,22 +369,15 @@ The chat handler passes `--json` to the CLI and parses structured output includi
 
 ---
 
-## User Management
+## Tailscale Access
 
-All user management is done via the CLI tool. For Docker deployments, prefix commands with `docker compose exec openmind`:
+OpenMind works great over Tailscale — it runs on its own port entirely separate from OpenClaw's gateway (port 18789). To expose it on your tailnet:
 
 ```bash
-# Docker
-docker compose exec openmind php setup/manage_users.php add alice
-docker compose exec openmind php setup/manage_users.php list
-
-# Bare metal
-php setup/manage_users.php add alice
-php setup/manage_users.php add alice MyPassword123!
-php setup/manage_users.php list
-php setup/manage_users.php passwd alice
-php setup/manage_users.php remove alice
+tailscale serve --bg http://localhost:8080
 ```
+
+Your OpenMind instance will then be reachable at `https://your-machine.tail-xyz.ts.net/` from any device on your tailnet, with Tailscale handling HTTPS automatically.
 
 ---
 
@@ -318,8 +387,6 @@ php setup/manage_users.php remove alice
 OpenMind/
 ├── index.php              # Entry point — routing, auth, HTML template
 ├── config.sample.php      # Sample config (copy to config.php)
-├── config.php             # Your config (gitignored, auto-generated by setup)
-├── auth.db                # User database (gitignored, auto-created)
 ├── Dockerfile             # Docker image definition
 ├── docker-compose.yml     # Docker Compose service config
 ├── .env.example           # Template for Docker environment variables
@@ -336,24 +403,11 @@ OpenMind/
 │   ├── settings-api.php   # Settings read (GET) and write (POST) — live-rewrites config.php
 │   └── setup.php          # First-run browser setup wizard
 ├── public/
-│   ├── css/
-│   │   ├── main.css       # Layout, header, resizable panel
-│   │   ├── themes.css     # Catppuccin dark/light CSS custom properties
-│   │   ├── designs.css    # 5 jsMind visual design themes
-│   │   ├── components.css # Search, context menu, settings modal, login page
-│   │   └── chat.css       # Chat bubbles, typing indicator, meta line
-│   └── js/
-│       ├── app.js         # Core: jsMind init, nodeDataMap, panel, editor, themes
-│       ├── search.js      # Full-text search index, keyboard navigation
-│       ├── context-menu.js # Right-click file operations (create, rename, delete)
-│       ├── settings.js    # Settings modal with tabs and live password validation
-│       └── chat.js        # Chat UI, markdown renderer, session persistence
+│   ├── css/               # main, themes, designs, components, chat
+│   └── js/                # app, search, context-menu, settings, chat
 ├── setup/
 │   └── manage_users.php   # CLI user management tool
-├── docs/
-│   └── screenshot.png     # App screenshot
-├── backups/               # Auto-created; timestamped backup directories
-├── install.sh             # Interactive installer (supports Docker + bare metal)
+├── install.sh             # Interactive installer (Docker + bare metal)
 ├── LICENSE                # MIT
 └── README.md
 ```
@@ -371,18 +425,6 @@ OpenMind/
 - Filenames are sanitized to alphanumeric plus `._- ` characters only; `.md` extension is enforced
 - The Docker container and Nginx configs deny direct access to `config.php`, `auth.db`, `.env`, and `backups/`
 - Consider Tailscale or custom CIDR restriction for an extra layer of access control
-
----
-
-## Tailscale Access
-
-OpenMind works great over Tailscale — it runs on its own port entirely separate from OpenClaw's gateway (port 18789). To expose it on your tailnet:
-
-```bash
-tailscale serve --bg http://localhost:8080
-```
-
-Your OpenMind instance will then be reachable at `https://your-machine.tail-xyz.ts.net/` from any device on your tailnet, with Tailscale handling HTTPS automatically.
 
 ---
 
