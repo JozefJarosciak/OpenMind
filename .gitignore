@@ -1,0 +1,8 @@
+config.php
+auth.db
+backups/
+*.pem
+*.ppk
+.idea/
+.DS_Store
+Thumbs.db

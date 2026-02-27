@@ -1,0 +1,28 @@
+/* ── OpenMind — Chat Styles ──────────────────────────────────────────────── */
+
+#chat-messages{flex:1;overflow-y:auto;padding:.8rem;display:flex;flex-direction:column;gap:.6rem;scroll-behavior:smooth}
+.chat-bubble{max-width:88%;padding:.6rem .9rem;border-radius:12px;font-size:.85rem;line-height:1.5;word-wrap:break-word;animation:chatIn .2s ease}
+@keyframes chatIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.chat-bubble.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.chat-bubble.assistant{align-self:flex-start;background:var(--btn-bg);color:var(--fg);border-bottom-left-radius:4px;border:1px solid var(--border)}
+.chat-bubble.assistant code{background:color-mix(in srgb,var(--accent) 15%,transparent);padding:.1rem .3rem;border-radius:3px;font-size:.8rem}
+.chat-bubble.assistant pre{background:var(--input-bg);padding:.5rem;border-radius:6px;overflow-x:auto;margin:.3rem 0;border:1px solid var(--border)}
+.chat-bubble.assistant pre code{background:none;padding:0}
+.chat-bubble.assistant strong{color:var(--accent)}
+.chat-bubble.assistant ul,.chat-bubble.assistant ol{margin:.3rem 0;padding-left:1.2rem}
+.chat-bubble.assistant li{margin:.15rem 0}
+.chat-bubble.error{align-self:center;background:#f38ba822;color:#f38ba8;border:1px solid #f38ba844;font-size:.8rem;border-radius:8px}
+.chat-typing{align-self:flex-start;display:flex;gap:4px;padding:.6rem .9rem;background:var(--btn-bg);border-radius:12px;border-bottom-left-radius:4px;border:1px solid var(--border)}
+.chat-typing span{width:6px;height:6px;border-radius:50%;background:var(--path-fg);animation:typingDot 1.2s infinite}
+.chat-typing span:nth-child(2){animation-delay:.2s}
+.chat-typing span:nth-child(3){animation-delay:.4s}
+@keyframes typingDot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.chat-meta{font-size:.65rem;opacity:.4;margin-top:.2rem;text-align:right}
+.chat-welcome{text-align:center;padding:2rem 1rem;color:var(--path-fg);font-size:.85rem;line-height:1.6}
+.chat-welcome h3{color:var(--accent);font-size:1rem;margin-bottom:.5rem}
+#chat-input-area{display:flex;gap:.4rem;padding:.5rem;border-top:1px solid var(--border);flex-shrink:0;background:var(--hdr);align-items:flex-end}
+#chat-input{flex:1;resize:none;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--input-fg);padding:.5rem .7rem;font-size:.85rem;font-family:inherit;outline:none;transition:border-color .2s;max-height:120px;min-height:38px}
+#chat-input:focus{border-color:var(--accent)}
+#chat-send{padding:.5rem .9rem;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;align-self:flex-end}
+#chat-send:hover{filter:brightness(1.1);transform:translateY(-1px)}
+#chat-send:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none}

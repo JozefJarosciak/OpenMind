@@ -1,0 +1,27 @@
+/* ── OpenMind — Color Themes (Catppuccin Mocha / Latte) ─────────────────── */
+
+/* Dark theme (default — Catppuccin Mocha) */
+:root{
+  --bg:#1e1e2e;--fg:#cdd6f4;
+  --hdr:#181825;--panel:#252537;
+  --border:#45475a;--accent:#89b4fa;
+  --btn-bg:#313244;--btn-fg:#cdd6f4;
+  --input-bg:#181825;--input-fg:#cdd6f4;
+  --preview-tbl:#313244;--preview-code:#313244;
+  --path-fg:#7f849c;--path-bg:#181825;
+  --save-bg:#a6e3a1;--save-fg:#1e1e2e;
+  --link-color:#89dceb;
+}
+
+/* Light theme (Catppuccin Latte) */
+[data-theme=light]{
+  --bg:#eff1f5;--fg:#4c4f69;
+  --hdr:#e6e9ef;--panel:#dce0e8;
+  --border:#bcc0cc;--accent:#1e66f5;
+  --btn-bg:#dce0e8;--btn-fg:#4c4f69;
+  --input-bg:#e6e9ef;--input-fg:#4c4f69;
+  --preview-tbl:#dce0e8;--preview-code:#dce0e8;
+  --path-fg:#7c7f93;--path-bg:#e6e9ef;
+  --save-bg:#40a02b;--save-fg:#eff1f5;
+  --link-color:#1e66f5;
+}
