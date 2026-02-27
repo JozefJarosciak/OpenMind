@@ -1,0 +1,23 @@
+services:
+  openmind:
+    build: .
+    container_name: openmind
+    restart: unless-stopped
+    ports:
+      - "${OPENMIND_PORT:-8080}:80"
+    volumes:
+      - ${OPENMIND_WORKSPACE:-./workspace}:/workspace
+      - openmind_data:/app/data
+    environment:
+      - OPENMIND_WORKSPACE=/workspace
+      - OPENMIND_ADMIN_USER=${OPENMIND_ADMIN_USER:-admin}
+      - OPENMIND_ADMIN_PASS=${OPENMIND_ADMIN_PASS:?Set OPENMIND_ADMIN_PASS in .env}
+      - OPENMIND_TITLE=${OPENMIND_TITLE:-OpenMind}
+      - OPENMIND_OPENCLAW_CMD=${OPENMIND_OPENCLAW_CMD:-/usr/bin/openclaw}
+      - OPENMIND_OPENCLAW_AGENT=${OPENMIND_OPENCLAW_AGENT:-main}
+      - OPENMIND_OPENCLAW_RUN_AS=${OPENMIND_OPENCLAW_RUN_AS:-}
+      - OPENMIND_NETWORK=${OPENMIND_NETWORK:-none}
+      - OPENMIND_ALLOWED_IPS=${OPENMIND_ALLOWED_IPS:-}
+
+volumes:
+  openmind_data:

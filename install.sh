@@ -109,6 +109,165 @@ printf "${NC}"
 printf "  %s\n" "Interactive setup — takes about 2 minutes."
 printf "  ${DIM}%s${NC}\n\n" "Safe to run alongside existing websites. Nothing is overwritten automatically."
 
+# ── Docker detection (recommended path) ───────────────────────────────────────
+HAS_DOCKER=0
+if command -v docker &>/dev/null && (docker compose version &>/dev/null 2>&1 || docker-compose version &>/dev/null 2>&1); then
+  HAS_DOCKER=1
+fi
+
+if [ "$HAS_DOCKER" -eq 1 ]; then
+  ok "Docker detected"
+  printf "\n"
+  printf "  %s\n" "How would you like to install OpenMind?"
+  printf "    ${GREEN}1) Docker (recommended)${NC} — self-contained, no dependencies to install\n"
+  printf "    2) Manual — install PHP and configure directly on this machine\n"
+  printf "\n"
+  ask INSTALL_MODE "Choice" "1"
+
+  if [ "$INSTALL_MODE" = "1" ]; then
+    # ── Docker install path ────────────────────────────────────────────────
+    printf "\n${BOLD}${BLUE}Docker Setup${NC}\n"
+
+    # Clone or use existing repo
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || pwd)"
+    if [ -f "$SCRIPT_DIR/docker-compose.yml" ] && [ -f "$SCRIPT_DIR/Dockerfile" ]; then
+      INSTALL_DIR="$SCRIPT_DIR"
+      ok "Using current directory: $INSTALL_DIR"
+    else
+      if [ "$EUID" -ne 0 ] 2>/dev/null; then
+        DEFAULT_DIR="$HOME/openmind"
+      else
+        DEFAULT_DIR="/opt/openmind"
+      fi
+      ask INSTALL_DIR "Install directory" "$DEFAULT_DIR"
+      if [ -d "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        ok "Existing installation found"
+        if ask_yn "Pull latest changes?"; then
+          git -C "$INSTALL_DIR" pull --ff-only && ok "Updated" \
+            || warn "Git pull failed — continuing with existing code"
+        fi
+      else
+        info "Cloning OpenMind..."
+        mkdir -p "$(dirname "$INSTALL_DIR")"
+        git clone --depth 1 --branch "$OPENMIND_BRANCH" "$OPENMIND_REPO" "$INSTALL_DIR" \
+          && ok "Cloned to $INSTALL_DIR" \
+          || die "Clone failed. Check your internet connection."
+      fi
+    fi
+
+    # Detect OpenClaw workspace
+    WORKSPACE_PATH=""
+    for _dir in \
+        "$HOME/.openclaw/workspace" \
+        "/root/.openclaw/workspace" \
+        "/home/*/.openclaw/workspace"; do
+      # shellcheck disable=SC2086
+      for _d in $_dir; do
+        [ -d "$_d" ] && { WORKSPACE_PATH="$_d"; break 2; }
+      done
+    done
+    if [ -n "$WORKSPACE_PATH" ]; then
+      ok "OpenClaw workspace detected: $WORKSPACE_PATH"
+      if ! ask_yn "Use this workspace path?"; then WORKSPACE_PATH=""; fi
+    fi
+    [ -z "$WORKSPACE_PATH" ] && ask WORKSPACE_PATH "OpenClaw workspace path" "$HOME/.openclaw/workspace"
+    [ -d "$WORKSPACE_PATH" ] || die "Directory does not exist: $WORKSPACE_PATH"
+    # Convert to absolute path
+    WORKSPACE_PATH="$(cd "$WORKSPACE_PATH" && pwd)"
+
+    # Port
+    _suggested=$(find_free_port 8080)
+    ask DOCKER_PORT "Port for OpenMind" "$_suggested"
+    [ "$DOCKER_PORT" -eq "$OPENCLAW_GW_PORT" ] 2>/dev/null \
+      && die "Port $OPENCLAW_GW_PORT is reserved for the OpenClaw gateway."
+
+    # Admin credentials
+    ask ADMIN_USER "Admin username" "admin"
+    while true; do
+      ask_secret ADMIN_PASS "Admin password (8+ chars, upper, lower, number, special)"
+      _ok=1
+      [ "${#ADMIN_PASS}" -lt 8 ]           && { warn "At least 8 characters required"; _ok=0; }
+      [[ "$ADMIN_PASS" =~ [A-Z] ]]         || { warn "Needs at least one uppercase letter"; _ok=0; }
+      [[ "$ADMIN_PASS" =~ [a-z] ]]         || { warn "Needs at least one lowercase letter"; _ok=0; }
+      [[ "$ADMIN_PASS" =~ [0-9] ]]         || { warn "Needs at least one number"; _ok=0; }
+      [[ "$ADMIN_PASS" =~ [^A-Za-z0-9] ]] || { warn "Needs at least one special character"; _ok=0; }
+      if [ "$_ok" -eq 1 ]; then
+        ask_secret ADMIN_PASS2 "Confirm password"
+        [ "$ADMIN_PASS" = "$ADMIN_PASS2" ] && break
+        warn "Passwords do not match, try again"
+      fi
+    done
+
+    # Optional settings
+    ask APP_TITLE "App title" "OpenMind"
+
+    # Detect openclaw binary
+    OPENCLAW_CMD=""
+    for _c in "$(command -v openclaw 2>/dev/null || true)" \
+        /usr/bin/openclaw /usr/local/bin/openclaw \
+        "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw"; do
+      [ -n "${_c:-}" ] && [ -x "$_c" ] && { OPENCLAW_CMD="$_c"; break; }
+    done
+    [ -z "$OPENCLAW_CMD" ] && OPENCLAW_CMD="/usr/bin/openclaw"
+
+    # Write .env
+    cat > "$INSTALL_DIR/.env" <<ENVEOF
+OPENMIND_WORKSPACE=$WORKSPACE_PATH
+OPENMIND_PORT=$DOCKER_PORT
+OPENMIND_ADMIN_USER=$ADMIN_USER
+OPENMIND_ADMIN_PASS=$ADMIN_PASS
+OPENMIND_TITLE=$APP_TITLE
+OPENMIND_OPENCLAW_CMD=$OPENCLAW_CMD
+OPENMIND_OPENCLAW_AGENT=main
+OPENMIND_OPENCLAW_RUN_AS=
+OPENMIND_NETWORK=none
+OPENMIND_ALLOWED_IPS=
+ENVEOF
+    chmod 600 "$INSTALL_DIR/.env"
+    ok ".env written"
+
+    # Clear sensitive vars
+    ADMIN_PASS="" ADMIN_PASS2="" 2>/dev/null || true
+
+    # Build and start
+    info "Building Docker image (this may take a minute on first run)..."
+    cd "$INSTALL_DIR"
+    if docker compose build --quiet 2>/dev/null || docker-compose build --quiet 2>/dev/null; then
+      ok "Image built"
+    else
+      die "Docker build failed. Check the output above."
+    fi
+
+    info "Starting OpenMind..."
+    if docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null; then
+      ok "Container started"
+    else
+      die "Failed to start container. Check: docker compose logs openmind"
+    fi
+
+    # Summary
+    printf "\n${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
+    printf "${GREEN}${BOLD}  OpenMind installed successfully!${NC}\n"
+    printf "${GREEN}${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n\n"
+    printf "  %-22s %s\n" "URL:"          "http://localhost:$DOCKER_PORT"
+    printf "  %-22s %s\n" "Install dir:"  "$INSTALL_DIR"
+    printf "  %-22s %s\n" "Workspace:"    "$WORKSPACE_PATH"
+    printf "  %-22s %s\n" "Admin user:"   "$ADMIN_USER"
+    printf "  %-22s %s\n" "Container:"    "openmind"
+    printf "\n"
+    printf "  Open the URL above in your browser and log in.\n\n"
+    printf "  ${DIM}Manage:${NC}\n"
+    printf "    Stop:    docker compose -f $INSTALL_DIR/docker-compose.yml down\n"
+    printf "    Start:   docker compose -f $INSTALL_DIR/docker-compose.yml up -d\n"
+    printf "    Logs:    docker compose -f $INSTALL_DIR/docker-compose.yml logs -f\n"
+    printf "    Rebuild: docker compose -f $INSTALL_DIR/docker-compose.yml up -d --build\n"
+    printf "\n"
+    exit 0
+  fi
+  # If user chose "2" (manual), fall through to the manual install path below
+  printf "\n"
+fi
+
 # ── Step 1: Prerequisites ──────────────────────────────────────────────────────
 step 1 "Prerequisites"
 

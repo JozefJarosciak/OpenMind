@@ -1,5 +1,6 @@
 config.php
 auth.db
+.env
 backups/
 *.pem
 *.ppk
