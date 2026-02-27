@@ -148,9 +148,16 @@ if [ "$HAS_DOCKER" -eq 0 ]; then
   printf "\n"
 fi
 
-# Helper: run docker commands — uses sudo if Docker was just installed (group not active)
+# Helper: run docker commands — uses sudo if current user can't talk to the daemon
+DOCKER_NEEDS_SUDO=0
+if [ "$EUID" -ne 0 ]; then
+  if ! docker info &>/dev/null; then
+    DOCKER_NEEDS_SUDO=1
+  fi
+fi
+
 dkr() {
-  if [ "$DOCKER_JUST_INSTALLED" -eq 1 ] && [ "$EUID" -ne 0 ]; then
+  if [ "$DOCKER_NEEDS_SUDO" -eq 1 ]; then
     sudo docker "$@"
   else
     docker "$@"
@@ -375,9 +382,9 @@ except: print('')
     printf "  %-22s %s\n" "Container:"    "openmind"
     printf "\n"
     printf "  Open the URL above in your browser and log in.\n\n"
-    if [ "$DOCKER_JUST_INSTALLED" -eq 1 ] && [ "$EUID" -ne 0 ]; then
-      printf "  ${YELLOW}Note:${NC} Docker was just installed. Log out and back in (or run\n"
-      printf "  'newgrp docker') to use docker commands without sudo.\n\n"
+    if [ "$DOCKER_NEEDS_SUDO" -eq 1 ]; then
+      printf "  ${YELLOW}Note:${NC} Log out and back in (or run 'newgrp docker') to use\n"
+      printf "  docker commands without sudo.\n\n"
     fi
     printf "  ${DIM}Manage:${NC}\n"
     printf "    Stop:      cd $INSTALL_DIR && docker compose down\n"
