@@ -267,6 +267,11 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
     ask DOCKER_PORT "Port for OpenMind" "$_suggested"
     [ "$DOCKER_PORT" -eq "$OPENCLAW_GW_PORT" ] 2>/dev/null \
       && die "Port $OPENCLAW_GW_PORT is reserved for the OpenClaw gateway."
+    while port_in_use "$DOCKER_PORT"; do
+      warn "Port $DOCKER_PORT is already in use."
+      _suggested=$(find_free_port "$((DOCKER_PORT + 1))")
+      ask DOCKER_PORT "Pick a different port" "$_suggested"
+    done
 
     # ── Admin credentials ──────────────────────────────────────────────────
     printf "\n"
@@ -329,8 +334,12 @@ ENVEOF
 
     # ── Build and start ────────────────────────────────────────────────────
     printf "\n"
-    info "Building Docker image (this may take a minute on first run)..."
     cd "$INSTALL_DIR"
+
+    # Stop any existing container from a previous run
+    dkr compose down &>/dev/null || true
+
+    info "Building Docker image (this may take a minute on first run)..."
     if dkr compose build 2>&1; then
       ok "Image built"
     else
