@@ -7,24 +7,55 @@ AUTH_DB="$DATA_DIR/auth.db"
 
 mkdir -p "$DATA_DIR/backups"
 
+# ── Detect OpenClaw agent name ────────────────────────────────────────────
+AGENT_NAME=""
+if [ -d /openclaw-home/agents ]; then
+  for d in /openclaw-home/agents/*/; do
+    _name=$(basename "$d")
+    if [ "$_name" = "main" ]; then
+      AGENT_NAME="main"
+      break
+    fi
+    [ -z "$AGENT_NAME" ] && AGENT_NAME="$_name"
+  done
+  [ -n "$AGENT_NAME" ] && echo ">> Detected OpenClaw agent: $AGENT_NAME"
+fi
+
+# Resolve display title: explicit OPENMIND_TITLE > detected agent name > "OpenMind"
+DISPLAY_TITLE="${OPENMIND_TITLE:-}"
+[ -z "$DISPLAY_TITLE" ] && DISPLAY_TITLE="${AGENT_NAME:-OpenMind}"
+
 # ── Generate config.php from env vars on first run ─────────────────────────
 if [ ! -f "$CONFIG_FILE" ]; then
   echo ">> First run: generating config.php from environment..."
-  CONFIG_FILE="$CONFIG_FILE" php -r '
+  CONFIG_FILE="$CONFIG_FILE" DISPLAY_TITLE="$DISPLAY_TITLE" php -r '
     $c = [
       "workspace_path"      => getenv("OPENMIND_WORKSPACE") ?: "/workspace",
       "backup_path"         => "/app/data/backups",
       "network_restriction" => getenv("OPENMIND_NETWORK") ?: "none",
       "allowed_ips"         => getenv("OPENMIND_ALLOWED_IPS") ?: "",
       "session_lifetime"    => 86400,
-      "app_title"           => getenv("OPENMIND_TITLE") ?: "OpenMind",
+      "app_title"           => getenv("DISPLAY_TITLE"),
     ];
     file_put_contents(
       getenv("CONFIG_FILE"),
       "<?php\nreturn " . var_export($c, true) . ";\n"
     );
   '
-  echo ">> config.php written"
+  echo ">> config.php written (title: $DISPLAY_TITLE)"
+else
+  # Update app_title in existing config if it was auto-detected
+  if [ -n "$AGENT_NAME" ]; then
+    DISPLAY_TITLE="$DISPLAY_TITLE" php -r '
+      $file = "/app/data/config.php";
+      $c = require $file;
+      $title = getenv("DISPLAY_TITLE");
+      if ($c["app_title"] !== $title) {
+        $c["app_title"] = $title;
+        file_put_contents($file, "<?php\nreturn " . var_export($c, true) . ";\n");
+      }
+    '
+  fi
 fi
 
 # Symlink config.php and auth.db into app root (where PHP expects them)
