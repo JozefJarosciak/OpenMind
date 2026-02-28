@@ -20,18 +20,31 @@ var nodeDataMap = {};
 var tuiEditor = null;
 function resetEditorScroll() {
   function doReset() {
+    // Move cursor to the very beginning so the browser doesn't scroll to end
+    if (tuiEditor) {
+      tuiEditor.blur();
+      try {
+        var pm = document.querySelector('#panel-editor .ProseMirror');
+        if (pm) {
+          var sel = document.getSelection();
+          if (sel && pm.firstChild) {
+            sel.collapse(pm.firstChild, 0);
+          }
+          pm.scrollTop = 0;
+        }
+      } catch(e) {}
+    }
     var ww = document.querySelector('#panel-editor .toastui-editor-ww-container');
     if (ww) ww.scrollTop = 0;
-    var pm = document.querySelector('#panel-editor .ProseMirror');
-    if (pm) pm.scrollTop = 0;
     var md = document.querySelector('#panel-editor .toastui-editor-md-container .toastui-editor');
     if (md) md.scrollTop = 0;
     var pb = document.getElementById('panel-body');
     if (pb) pb.scrollTop = 0;
   }
-  // Toast UI needs time to render; reset at two intervals to be safe
-  setTimeout(doReset, 80);
-  setTimeout(doReset, 300);
+  // Toast UI needs time to render; reset at multiple intervals to beat cursor placement
+  setTimeout(doReset, 50);
+  setTimeout(doReset, 150);
+  setTimeout(doReset, 400);
 }
 function ensureEditor(cb) {
   if (tuiEditor) { cb(); return; }
