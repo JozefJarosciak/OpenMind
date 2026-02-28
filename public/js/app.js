@@ -376,17 +376,3 @@ window.cancelEdit = function() {
   if (savedWidth) panel.style.width = savedWidth;
 })();
 
-// ── Panel Tabs ──────────────────────────────────────────────────────────────
-window.switchTab = function(tab) {
-  document.querySelectorAll('.panel-tab').forEach(function(t) {
-    t.classList.toggle('active', t.dataset.tab === tab);
-  });
-  document.querySelectorAll('.tab-pane').forEach(function(p) {
-    p.classList.toggle('active', p.id === 'tab-' + tab);
-  });
-  if (tab === 'chat') {
-    var msgs = document.getElementById('chat-messages');
-    msgs.scrollTop = msgs.scrollHeight;
-    document.getElementById('chat-input').focus();
-  }
-};

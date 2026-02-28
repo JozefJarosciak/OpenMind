@@ -6,14 +6,9 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-dev \
     git \
-    nodejs \
-    npm \
     && mkdir -p /run/nginx /app/backups \
     && php -m | grep -qi pdo_sqlite || docker-php-ext-install pdo_sqlite \
     && php -m | grep -qi sqlite3    || docker-php-ext-install sqlite3
-
-# Install openclaw CLI (thin client that connects to host gateway via WebSocket)
-RUN npm install -g openclaw 2>/dev/null || true
 
 # PHP-FPM config: listen on unix socket instead of TCP port 9000
 # The official php-fpm Docker image sets "listen = 9000" in docker.conf

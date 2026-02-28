@@ -17,9 +17,6 @@ function get_defaults(): array {
         // ── User-facing settings (editable via Settings UI) ───────────
         'workspace_path'      => '/root/.openclaw/workspace',
         'backup_path'         => dirname(__DIR__) . '/backups',
-        'openclaw_command'    => '/usr/bin/openclaw',
-        'openclaw_agent'      => 'main',
-        'openclaw_run_as'     => '',
         'network_restriction' => 'none',
         'allowed_ips'         => '',
         'session_lifetime'    => 86400,
@@ -29,7 +26,6 @@ function get_defaults(): array {
         'rate_limit_max_attempts' => 10,
         'rate_limit_window'       => 900,       // seconds (15 minutes)
         'remember_me_lifetime'    => 2592000,   // seconds (30 days)
-        'chat_timeout'            => 120,       // seconds
         'min_session_lifetime'    => 300,       // seconds
 
         // ── Password policy ───────────────────────────────────────────
@@ -73,9 +69,6 @@ function get_defaults(): array {
         // ── Panel ─────────────────────────────────────────────────────
         'panel_min_width' => 220,
         'panel_max_ratio' => 0.8,
-
-        // ── Chat UI ───────────────────────────────────────────────────
-        'chat_textarea_max_height' => 120,
     ];
 }
 

@@ -39,11 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($action === 'chat') {
-        require __DIR__ . '/includes/chat.php';
-        exit;
-    }
-
     if ($action === 'saveSettings' || $action === 'applyUpdate') {
         require __DIR__ . '/includes/settings-api.php';
         exit;
@@ -93,7 +88,6 @@ $workspacePath = $config['workspace_path'];
 <link rel="stylesheet" href="public/css/main.css">
 <link rel="stylesheet" href="public/css/designs.css">
 <link rel="stylesheet" href="public/css/components.css">
-<link rel="stylesheet" href="public/css/chat.css">
 </head>
 <body data-theme="dark" data-design="outline">
 <header>
@@ -127,31 +121,13 @@ $workspacePath = $config['workspace_path'];
       <span id="panel-title">&mdash;</span>
       <button onclick="cancelEdit()" style="padding:.2rem .5rem;margin-left:.4rem">&times;</button>
     </div>
-    <div id="panel-tabs">
-      <button class="panel-tab active" data-tab="editor" onclick="switchTab('editor')">Editor</button>
-      <button class="panel-tab" data-tab="chat" onclick="switchTab('chat')">Chat</button>
+    <div id="panel-file"></div>
+    <div id="panel-body">
+      <div id="panel-editor"></div>
     </div>
-    <div id="tab-editor" class="tab-pane active">
-      <div id="panel-file"></div>
-      <div id="panel-body">
-        <div id="panel-editor"></div>
-      </div>
-      <div id="panel-actions">
-        <button id="btn-save-node" onclick="saveNodeContent()">&#128190; Save to file</button>
-        <button onclick="cancelEdit()">Cancel</button>
-      </div>
-    </div>
-    <div id="tab-chat" class="tab-pane">
-      <div id="chat-messages">
-        <div class="chat-welcome">
-          <h3><?= $appTitle ?> Chat</h3>
-          <p>Chat directly with your OpenClaw agent.<br>Ask questions, give commands, or just say hi.</p>
-        </div>
-      </div>
-      <div id="chat-input-area">
-        <textarea id="chat-input" placeholder="Message your agent..." rows="1"></textarea>
-        <button id="chat-send" onclick="sendChat()">Send</button>
-      </div>
+    <div id="panel-actions">
+      <button id="btn-save-node" onclick="saveNodeContent()">&#128190; Save to file</button>
+      <button onclick="cancelEdit()">Cancel</button>
     </div>
   </div>
 </div>
@@ -174,7 +150,7 @@ $workspacePath = $config['workspace_path'];
     <div class="modal-body">
       <div class="settings-tabs">
         <button class="settings-tab active" data-stab="profile" onclick="switchSettingsTab('profile')">Profile</button>
-        <button class="settings-tab" data-stab="openclaw" onclick="switchSettingsTab('openclaw')">OpenClaw</button>
+        <button class="settings-tab" data-stab="workspace" onclick="switchSettingsTab('workspace')">Workspace</button>
         <button class="settings-tab" data-stab="security" onclick="switchSettingsTab('security')">Security</button>
         <button class="settings-tab" data-stab="app" onclick="switchSettingsTab('app')">App</button>
         <button class="settings-tab" data-stab="update" onclick="switchSettingsTab('update')">Update</button>
@@ -210,30 +186,15 @@ $workspacePath = $config['workspace_path'];
         <button class="modal-btn" onclick="changePassword()">Change Password</button>
       </div>
 
-      <!-- OpenClaw Tab -->
-      <div id="stab-openclaw" class="settings-pane">
-        <h3>OpenClaw Configuration</h3>
+      <!-- Workspace Tab -->
+      <div id="stab-workspace" class="settings-pane">
+        <h3>Workspace Configuration</h3>
         <div class="field">
           <label for="set-workspace">Workspace Path</label>
           <input type="text" id="set-workspace" placeholder="/root/.openclaw/workspace">
           <div class="field-hint">Path to your OpenClaw workspace directory containing .md files</div>
         </div>
-        <div class="field">
-          <label for="set-command">OpenClaw CLI Path</label>
-          <input type="text" id="set-command" placeholder="/usr/bin/openclaw">
-          <div class="field-hint">Full path to the openclaw binary</div>
-        </div>
-        <div class="field">
-          <label for="set-agent">Agent Name</label>
-          <input type="text" id="set-agent" placeholder="main">
-          <div class="field-hint">Which OpenClaw agent to use for chat</div>
-        </div>
-        <div class="field">
-          <label for="set-runas">Run As User</label>
-          <input type="text" id="set-runas" placeholder="(web server user)">
-          <div class="field-hint">Run openclaw via sudo as this user. Leave empty for web server user.</div>
-        </div>
-        <button class="modal-btn" onclick="saveSettings()">Save OpenClaw Settings</button>
+        <button class="modal-btn" onclick="saveSettings()">Save Workspace Settings</button>
       </div>
 
       <!-- Security Tab -->
@@ -318,7 +279,6 @@ window.APP_CONFIG = <?= json_encode([
   'searchMaxResults'      => $config['search_max_results'],
   'panelMinWidth'         => $config['panel_min_width'],
   'panelMaxRatio'         => $config['panel_max_ratio'],
-  'chatTextareaMaxHeight' => $config['chat_textarea_max_height'],
 ], JSON_HEX_TAG) ?>;
 </script>
 <script id="mindmap-data" type="application/json"><?= $jsonData ?></script>
@@ -328,6 +288,5 @@ window.APP_CONFIG = <?= json_encode([
 <script src="public/js/search.js"></script>
 <script src="public/js/context-menu.js"></script>
 <script src="public/js/settings.js"></script>
-<script src="public/js/chat.js"></script>
 </body>
 </html>

@@ -14,9 +14,6 @@ if [ ! -f "$CONFIG_FILE" ]; then
     $c = [
       "workspace_path"      => getenv("OPENMIND_WORKSPACE") ?: "/workspace",
       "backup_path"         => "/app/data/backups",
-      "openclaw_command"    => getenv("OPENMIND_OPENCLAW_CMD") ?: "openclaw",
-      "openclaw_agent"      => getenv("OPENMIND_OPENCLAW_AGENT") ?: "main",
-      "openclaw_run_as"     => getenv("OPENMIND_OPENCLAW_RUN_AS") ?: "",
       "network_restriction" => getenv("OPENMIND_NETWORK") ?: "none",
       "allowed_ips"         => getenv("OPENMIND_ALLOWED_IPS") ?: "",
       "session_lifetime"    => 86400,
@@ -55,27 +52,6 @@ fi
 # Ensure symlink exists for auth.db (may have been created by manage_users.php)
 if [ -f "$AUTH_DB" ] && [ ! -L /app/auth.db ]; then
   ln -sf "$AUTH_DB" /app/auth.db
-fi
-
-# ── Configure openclaw CLI to connect to host gateway ─────────────────────
-GATEWAY_HOST="${OPENMIND_GATEWAY_HOST:-host.docker.internal}"
-GATEWAY_PORT="${OPENMIND_GATEWAY_PORT:-18789}"
-GATEWAY_TOKEN="${OPENMIND_GATEWAY_TOKEN:-}"
-if command -v openclaw >/dev/null 2>&1; then
-  OPENCLAW_HOME="/app/data/.openclaw"
-  mkdir -p "$OPENCLAW_HOME"
-  cat > "$OPENCLAW_HOME/openclaw.json" <<EOCFG
-{
-  "gateway": {
-    "remote": {
-      "url": "ws://${GATEWAY_HOST}:${GATEWAY_PORT}",
-      "token": "${GATEWAY_TOKEN}"
-    }
-  }
-}
-EOCFG
-  export OPENCLAW_HOME
-  echo ">> OpenClaw CLI configured → ws://${GATEWAY_HOST}:${GATEWAY_PORT}"
 fi
 
 # ── Initialize git repo for update checks ─────────────────────────────────

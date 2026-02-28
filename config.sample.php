@@ -15,16 +15,6 @@ return [
     // Where file backups are stored before edits/deletes
     'backup_path'         => __DIR__ . '/backups',
 
-    // Path to the openclaw CLI binary
-    'openclaw_command'    => '/usr/bin/openclaw',
-
-    // Which OpenClaw agent to use for chat
-    'openclaw_agent'      => 'main',
-
-    // Run openclaw as a different user (via sudo -u). Leave empty to run as the web server user.
-    // Example: 'alice'
-    'openclaw_run_as'     => '',
-
     // Network restriction: 'none', 'tailscale', or 'custom'
     'network_restriction' => 'none',
 

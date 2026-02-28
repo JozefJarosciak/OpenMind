@@ -115,9 +115,6 @@ function loadSettingsForm() {
       var f = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
       f('set-workspace', c.workspace_path);
       f('set-backup', c.backup_path);
-      f('set-command', c.openclaw_command);
-      f('set-agent', c.openclaw_agent);
-      f('set-runas', c.openclaw_run_as);
       f('set-network', c.network_restriction);
       f('set-ips', c.allowed_ips);
       f('set-session', c.session_lifetime);
@@ -135,9 +132,6 @@ window.saveSettings = function() {
   var settings = {
     workspace_path:      document.getElementById('set-workspace').value,
     backup_path:         document.getElementById('set-backup').value,
-    openclaw_command:    document.getElementById('set-command').value,
-    openclaw_agent:      document.getElementById('set-agent').value,
-    openclaw_run_as:     document.getElementById('set-runas').value,
     network_restriction: document.getElementById('set-network').value,
     allowed_ips:         document.getElementById('set-ips').value,
     session_lifetime:    document.getElementById('set-session').value,

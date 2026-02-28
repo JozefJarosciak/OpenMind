@@ -21,9 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'setup
         $newConfig = [
             'workspace_path'      => rtrim($workspace, '/'),
             'backup_path'         => $defaults['backup_path'],
-            'openclaw_command'    => trim($_POST['openclaw_command'] ?? '') ?: $defaults['openclaw_command'],
-            'openclaw_agent'      => trim($_POST['openclaw_agent'] ?? '') ?: $defaults['openclaw_agent'],
-            'openclaw_run_as'     => trim($_POST['openclaw_run_as'] ?? ''),
             'network_restriction' => $defaults['network_restriction'],
             'allowed_ips'         => $defaults['allowed_ips'],
             'session_lifetime'    => $defaults['session_lifetime'],
@@ -92,20 +89,6 @@ button:hover{box-shadow:0 4px 16px rgba(137,180,250,.3);transform:translateY(-1p
     <div class="field">
       <label for="app_title">App Title</label>
       <input type="text" id="app_title" name="app_title" value="<?= htmlspecialchars($_POST['app_title'] ?? $defaults['app_title']) ?>">
-    </div>
-    <div class="field">
-      <label for="openclaw_command">OpenClaw CLI Path</label>
-      <input type="text" id="openclaw_command" name="openclaw_command" value="<?= htmlspecialchars($_POST['openclaw_command'] ?? $defaults['openclaw_command']) ?>">
-      <div class="hint">Path to the openclaw binary (for chat feature)</div>
-    </div>
-    <div class="field">
-      <label for="openclaw_agent">Agent Name</label>
-      <input type="text" id="openclaw_agent" name="openclaw_agent" value="<?= htmlspecialchars($_POST['openclaw_agent'] ?? $defaults['openclaw_agent']) ?>">
-    </div>
-    <div class="field">
-      <label for="openclaw_run_as">Run As User</label>
-      <input type="text" id="openclaw_run_as" name="openclaw_run_as" value="<?= htmlspecialchars($_POST['openclaw_run_as'] ?? '') ?>">
-      <div class="hint">Optional: run openclaw via sudo as this user (e.g. 'alice')</div>
     </div>
     <button type="submit">Complete Setup</button>
   </form>
