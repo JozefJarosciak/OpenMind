@@ -95,7 +95,16 @@ window.sendChat = function() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'chat', message: message, sessionId: chatSessionId })
   })
-  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    if (res.status === 401) {
+      throw new Error('Session expired. Please refresh the page and log in again.');
+    }
+    var ct = (res.headers.get('content-type') || '');
+    if (ct.indexOf('application/json') === -1) {
+      throw new Error('Server returned an unexpected response. Try refreshing the page.');
+    }
+    return res.json();
+  })
   .then(function(r) {
     hideTyping();
     if (r.success) {
@@ -110,7 +119,7 @@ window.sendChat = function() {
   })
   .catch(function(err) {
     hideTyping();
-    addChatBubble('error', 'Network error: ' + err.message);
+    addChatBubble('error', err.message);
   })
   .finally(function() {
     chatBusy = false;

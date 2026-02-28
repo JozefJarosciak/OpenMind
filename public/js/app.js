@@ -19,14 +19,19 @@ var nodeDataMap = {};
 // ── TUI Markdown Editor (lazy init) ─────────────────────────────────────────
 var tuiEditor = null;
 function resetEditorScroll() {
-  requestAnimationFrame(function() {
+  function doReset() {
     var ww = document.querySelector('#panel-editor .toastui-editor-ww-container');
     if (ww) ww.scrollTop = 0;
+    var pm = document.querySelector('#panel-editor .ProseMirror');
+    if (pm) pm.scrollTop = 0;
     var md = document.querySelector('#panel-editor .toastui-editor-md-container .toastui-editor');
     if (md) md.scrollTop = 0;
     var pb = document.getElementById('panel-body');
     if (pb) pb.scrollTop = 0;
-  });
+  }
+  // Toast UI needs time to render; reset at two intervals to be safe
+  setTimeout(doReset, 80);
+  setTimeout(doReset, 300);
 }
 function ensureEditor(cb) {
   if (tuiEditor) { cb(); return; }

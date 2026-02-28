@@ -138,6 +138,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
 
 // ── Show Login Page if Not Authenticated ────────────────────────────────────
 if (!isset($_SESSION['user'])) {
+    // For AJAX / API requests, return JSON 401 instead of the HTML login page
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+    $acceptHeader = $_SERVER['HTTP_ACCEPT'] ?? '';
+    $isApi = stripos($contentType, 'application/json') !== false
+          || stripos($acceptHeader, 'application/json') !== false
+          || isset($_GET['getSettings']) || isset($_GET['checkUpdate'])
+          || isset($_GET['file']) || isset($_GET['refreshFile']);
+    if ($isApi) {
+        http_response_code(401);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Session expired. Please refresh the page and log in again.']);
+        exit;
+    }
+
     $err = $loginError ? '<div class="error">' . htmlspecialchars($loginError) . '</div>' : '';
     $appTitle = htmlspecialchars($config['app_title']);
     echo <<<LOGIN_PAGE
