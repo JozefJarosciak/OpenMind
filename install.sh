@@ -483,9 +483,17 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
         ;;
     esac
 
+    # ── Derive OpenClaw home from workspace path ───────────────────────────
+    OPENCLAW_HOME=""
+    _ws_base=$(basename "$WORKSPACE_PATH")
+    if [ "$_ws_base" = "workspace" ]; then
+      OPENCLAW_HOME=$(dirname "$WORKSPACE_PATH")
+    fi
+
     # ── Write .env ─────────────────────────────────────────────────────────
     cat > "$INSTALL_DIR/.env" <<ENVEOF
 OPENMIND_WORKSPACE=$WORKSPACE_PATH
+OPENCLAW_HOME=${OPENCLAW_HOME:-$WORKSPACE_PATH}
 OPENMIND_PORT=$DOCKER_PORT
 OPENMIND_ADMIN_USER=$ADMIN_USER
 OPENMIND_ADMIN_PASS=$ADMIN_PASS

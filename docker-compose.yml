@@ -7,12 +7,13 @@ services:
       - "${OPENMIND_PORT:-8080}:80"
     volumes:
       - ${OPENMIND_WORKSPACE:-./workspace}:/workspace
+      - ${OPENCLAW_HOME:-./}:/openclaw-home:ro
       - openmind_data:/app/data
     environment:
       - OPENMIND_WORKSPACE=/workspace
       - OPENMIND_ADMIN_USER=${OPENMIND_ADMIN_USER:-admin}
       - OPENMIND_ADMIN_PASS=${OPENMIND_ADMIN_PASS:?Set OPENMIND_ADMIN_PASS in .env}
-      - OPENMIND_TITLE=${OPENMIND_TITLE:-OpenMind}
+      - OPENMIND_TITLE=${OPENMIND_TITLE:-}
       - OPENMIND_NETWORK=${OPENMIND_NETWORK:-none}
       - OPENMIND_ALLOWED_IPS=${OPENMIND_ALLOWED_IPS:-}
 

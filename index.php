@@ -72,7 +72,9 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     exit;
 }
 
-$appTitle = htmlspecialchars($config['app_title']);
+$agentName = detectAgentName($config);
+$displayTitle = $agentName ?: $config['app_title'];
+$appTitle = htmlspecialchars($displayTitle);
 $userName = htmlspecialchars($_SESSION['user']);
 $workspacePath = $config['workspace_path'];
 ?><!DOCTYPE html>
@@ -265,7 +267,7 @@ $workspacePath = $config['workspace_path'];
 <!-- Data & Scripts -->
 <script>
 window.APP_CONFIG = <?= json_encode([
-  'appTitle'              => $config['app_title'],
+  'appTitle'              => $displayTitle,
   'workspacePath'         => $config['workspace_path'],
   'passwordMinLength'     => $config['password_min_length'],
   'passwordRules'         => $config['password_rules'],

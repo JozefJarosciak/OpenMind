@@ -132,6 +132,41 @@ function assignBranchColor(&$node, $color) {
 }
 
 /**
+ * Detect the OpenClaw agent name from the directory structure.
+ * Checks Docker mount at /openclaw-home, then derives from workspace path.
+ */
+function detectAgentName($config) {
+    $candidates = [];
+
+    // Docker: openclaw home mounted at /openclaw-home
+    if (is_dir('/openclaw-home/agents')) {
+        $candidates[] = '/openclaw-home';
+    }
+
+    // Manual install: workspace is typically ~/.openclaw/workspace
+    $ws = rtrim($config['workspace_path'], '/');
+    if (basename($ws) === 'workspace') {
+        $parent = dirname($ws);
+        if (is_dir($parent . '/agents')) {
+            $candidates[] = $parent;
+        }
+    }
+
+    foreach ($candidates as $home) {
+        $dirs = glob($home . '/agents/*', GLOB_ONLYDIR);
+        if (!$dirs) continue;
+
+        // Prefer "main" if it exists, otherwise first agent
+        foreach ($dirs as $d) {
+            if (basename($d) === 'main') return 'main';
+        }
+        return basename($dirs[0]);
+    }
+
+    return null;
+}
+
+/**
  * Build the full workspace tree for jsMind.
  */
 function buildWorkspaceTree($config) {
@@ -235,14 +270,16 @@ function buildWorkspaceTree($config) {
     }
     unset($child);
 
-    $appTitle = $config['app_title'];
+    // Use detected agent name, fall back to configured app_title
+    $agentName = detectAgentName($config);
+    $displayTitle = $agentName ?: $config['app_title'];
 
     return [
-        'meta'   => ['name' => $appTitle, 'author' => 'openclaw', 'version' => '1.0'],
+        'meta'   => ['name' => $displayTitle, 'author' => 'openclaw', 'version' => '1.0'],
         'format' => 'node_tree',
         'data'   => [
             'id'       => 'root',
-            'topic'    => $appTitle,
+            'topic'    => $displayTitle,
             'data'     => [
                 'background-color' => $config['color_root'],
                 'color'            => $config['color_node_fg'],
