@@ -28,7 +28,7 @@ if ($restriction !== 'none') {
     if (!$allowed) {
         http_response_code(403);
         header('Content-Type: text/html; charset=UTF-8');
-        $appTitle = htmlspecialchars($config['app_title']);
+        $appTitle = htmlspecialchars(getDisplayTitle($config));
         $safeIP = htmlspecialchars($clientIP);
         echo <<<BLOCKED
 <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>403 Forbidden</title>
@@ -153,7 +153,7 @@ if (!isset($_SESSION['user'])) {
     }
 
     $err = $loginError ? '<div class="error">' . htmlspecialchars($loginError) . '</div>' : '';
-    $appTitle = htmlspecialchars($config['app_title']);
+    $appTitle = htmlspecialchars(getDisplayTitle($config));
     echo <<<LOGIN_PAGE
 <!DOCTYPE html>
 <html>

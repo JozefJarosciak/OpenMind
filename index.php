@@ -72,9 +72,7 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     exit;
 }
 
-$agentName = detectAgentName($config);
-$displayTitle = $agentName ?: $config['app_title'];
-$appTitle = htmlspecialchars($displayTitle);
+$appTitle = htmlspecialchars(getDisplayTitle($config));
 $userName = htmlspecialchars($_SESSION['user']);
 $workspacePath = $config['workspace_path'];
 ?><!DOCTYPE html>

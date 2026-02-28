@@ -88,6 +88,50 @@ function get_config(): array {
 }
 
 /**
+ * Detect the OpenClaw agent name from the directory structure.
+ * Checks Docker mount at /openclaw-home, then derives from workspace path.
+ */
+function detectAgentName(array $config): ?string {
+    $candidates = [];
+
+    // Docker: openclaw home mounted at /openclaw-home
+    if (is_dir('/openclaw-home/agents')) {
+        $candidates[] = '/openclaw-home';
+    }
+
+    // Manual install: workspace is typically ~/.openclaw/workspace
+    $ws = rtrim($config['workspace_path'], '/');
+    if (basename($ws) === 'workspace') {
+        $parent = dirname($ws);
+        if (is_dir($parent . '/agents')) {
+            $candidates[] = $parent;
+        }
+    }
+
+    foreach ($candidates as $home) {
+        $dirs = glob($home . '/agents/*', GLOB_ONLYDIR);
+        if (!$dirs) continue;
+
+        foreach ($dirs as $d) {
+            if (basename($d) === 'main') return 'main';
+        }
+        return basename($dirs[0]);
+    }
+
+    return null;
+}
+
+/**
+ * Get the display title: detected agent name or configured app_title.
+ */
+function getDisplayTitle(array $config): string {
+    static $title = null;
+    if ($title !== null) return $title;
+    $title = detectAgentName($config) ?: $config['app_title'];
+    return $title;
+}
+
+/**
  * Validate a password against the configured policy.
  * Returns an array of human-readable error strings (empty = valid).
  */
