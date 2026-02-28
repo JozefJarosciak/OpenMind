@@ -3,6 +3,8 @@ services:
     build: .
     container_name: openmind
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${OPENMIND_PORT:-8080}:80"
     volumes:
@@ -13,11 +15,14 @@ services:
       - OPENMIND_ADMIN_USER=${OPENMIND_ADMIN_USER:-admin}
       - OPENMIND_ADMIN_PASS=${OPENMIND_ADMIN_PASS:?Set OPENMIND_ADMIN_PASS in .env}
       - OPENMIND_TITLE=${OPENMIND_TITLE:-OpenMind}
-      - OPENMIND_OPENCLAW_CMD=${OPENMIND_OPENCLAW_CMD:-/usr/bin/openclaw}
+      - OPENMIND_OPENCLAW_CMD=${OPENMIND_OPENCLAW_CMD:-openclaw}
       - OPENMIND_OPENCLAW_AGENT=${OPENMIND_OPENCLAW_AGENT:-main}
       - OPENMIND_OPENCLAW_RUN_AS=${OPENMIND_OPENCLAW_RUN_AS:-}
       - OPENMIND_NETWORK=${OPENMIND_NETWORK:-none}
       - OPENMIND_ALLOWED_IPS=${OPENMIND_ALLOWED_IPS:-}
+      - OPENMIND_GATEWAY_HOST=${OPENMIND_GATEWAY_HOST:-host.docker.internal}
+      - OPENMIND_GATEWAY_PORT=${OPENMIND_GATEWAY_PORT:-18789}
+      - OPENMIND_GATEWAY_TOKEN=${OPENMIND_GATEWAY_TOKEN:-}
 
 volumes:
   openmind_data:

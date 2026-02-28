@@ -35,11 +35,18 @@ $escapedSid   = escapeshellarg('webchat-' . $sessionId);
 $escapedAgent = escapeshellarg($agent);
 $escapedCmd   = escapeshellarg($clawCmd);
 
+// Set OPENCLAW_HOME for Docker installs (gateway config lives in /app/data/.openclaw)
+$envPrefix = '';
+$openclawHome = '/app/data/.openclaw';
+if (is_dir($openclawHome)) {
+    $envPrefix = 'OPENCLAW_HOME=' . escapeshellarg($openclawHome) . ' ';
+}
+
 if ($runAs) {
     $escapedUser = escapeshellarg($runAs);
-    $cmd = "sudo -u $escapedUser $escapedCmd agent --agent $escapedAgent --session-id $escapedSid --message $escapedMsg --json 2>&1";
+    $cmd = "{$envPrefix}sudo -u $escapedUser $escapedCmd agent --agent $escapedAgent --session-id $escapedSid --message $escapedMsg --json 2>&1";
 } else {
-    $cmd = "$escapedCmd agent --agent $escapedAgent --session-id $escapedSid --message $escapedMsg --json 2>&1";
+    $cmd = "{$envPrefix}$escapedCmd agent --agent $escapedAgent --session-id $escapedSid --message $escapedMsg --json 2>&1";
 }
 
 $output = shell_exec($cmd);

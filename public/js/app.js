@@ -19,32 +19,43 @@ var nodeDataMap = {};
 // ── TUI Markdown Editor (lazy init) ─────────────────────────────────────────
 var tuiEditor = null;
 function resetEditorScroll() {
-  function doReset() {
-    // Move cursor to the very beginning so the browser doesn't scroll to end
-    if (tuiEditor) {
-      tuiEditor.blur();
-      try {
-        var pm = document.querySelector('#panel-editor .ProseMirror');
-        if (pm) {
-          var sel = document.getSelection();
-          if (sel && pm.firstChild) {
-            sel.collapse(pm.firstChild, 0);
-          }
-          pm.scrollTop = 0;
-        }
-      } catch(e) {}
-    }
-    var ww = document.querySelector('#panel-editor .toastui-editor-ww-container');
-    if (ww) ww.scrollTop = 0;
-    var md = document.querySelector('#panel-editor .toastui-editor-md-container .toastui-editor');
-    if (md) md.scrollTop = 0;
-    var pb = document.getElementById('panel-body');
-    if (pb) pb.scrollTop = 0;
+  if (!tuiEditor) return;
+  function scrollAllToTop() {
+    // Scroll every possible container to the top
+    ['#panel-editor .toastui-editor-ww-container',
+     '#panel-editor .ProseMirror',
+     '#panel-editor .toastui-editor-md-container .toastui-editor',
+     '#panel-body'
+    ].forEach(function(sel) {
+      var el = document.querySelector(sel);
+      if (el) el.scrollTop = 0;
+    });
   }
-  // Toast UI needs time to render; reset at multiple intervals to beat cursor placement
-  setTimeout(doReset, 50);
-  setTimeout(doReset, 150);
-  setTimeout(doReset, 400);
+  // 1. Move cursor to start of document using editor API
+  try {
+    tuiEditor.moveCursorToStart();
+  } catch(e) {
+    // Fallback: collapse selection to beginning of ProseMirror
+    try {
+      var pm = document.querySelector('#panel-editor .ProseMirror');
+      if (pm && pm.firstChild) {
+        var range = document.createRange();
+        range.setStart(pm.firstChild, 0);
+        range.collapse(true);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } catch(e2) {}
+  }
+  // 2. Blur so the browser doesn't scroll to follow the cursor
+  tuiEditor.blur();
+  // 3. Aggressively reset scroll at increasing intervals
+  scrollAllToTop();
+  setTimeout(scrollAllToTop, 30);
+  setTimeout(scrollAllToTop, 100);
+  setTimeout(scrollAllToTop, 250);
+  setTimeout(scrollAllToTop, 500);
 }
 function ensureEditor(cb) {
   if (tuiEditor) { cb(); return; }
