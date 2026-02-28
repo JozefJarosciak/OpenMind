@@ -114,7 +114,9 @@ $workspacePath = $config['workspace_path'];
 </header>
 
 <div id="main">
-  <div id="editor"></div>
+  <div id="editor">
+    <button id="btn-fit" title="Fit to screen">&#x26F6;</button>
+  </div>
   <div id="panel" class="hidden">
     <div id="resize-handle"></div>
     <div id="panel-header">

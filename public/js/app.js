@@ -217,7 +217,7 @@ function openPanel(node) {
       document.getElementById('panel-editor').dataset.file = '';
       var appTitle = (window.APP_CONFIG || {}).appTitle || 'OpenMind';
       var summary = [
-        '# ' + appTitle + ' Workspace',
+        '# ' + appTitle,
         '',
         'This is the root of the knowledge base.',
         '',
@@ -260,6 +260,60 @@ function openPanel(node) {
     }
   });
 }
+
+// ── Fit to Screen ──────────────────────────────────────────────────────────
+document.getElementById('btn-fit').onclick = function() {
+  var container = document.getElementById('editor');
+  var panel = jm.view.e_panel;
+  var nodes = panel.querySelectorAll('jmnode');
+  if (!nodes.length) return;
+
+  // Reset zoom to 1 for accurate measurement
+  jm.view.actualZoom = 1;
+  panel.style.zoom = 1;
+
+  requestAnimationFrame(function() {
+    var containerRect = container.getBoundingClientRect();
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    nodes.forEach(function(n) {
+      if (n.style.display === 'none' || n.offsetWidth === 0) return;
+      var rect = n.getBoundingClientRect();
+      var x = rect.left - containerRect.left + container.scrollLeft;
+      var y = rect.top - containerRect.top + container.scrollTop;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + rect.width);
+      maxY = Math.max(maxY, y + rect.height);
+    });
+
+    if (minX === Infinity) return;
+
+    var contentW = maxX - minX;
+    var contentH = maxY - minY;
+    var viewW = container.clientWidth;
+    var viewH = container.clientHeight;
+    var padding = 60;
+    var zoom = Math.min(
+      (viewW - padding) / contentW,
+      (viewH - padding) / contentH
+    );
+    zoom = Math.min(zoom, 1.5);
+    zoom = Math.max(zoom, 0.1);
+    zoom = Math.round(zoom * 100) / 100;
+
+    jm.view.actualZoom = zoom;
+    panel.style.zoom = zoom;
+
+    // Center content after zoom
+    requestAnimationFrame(function() {
+      var cx = ((minX + maxX) / 2) * zoom;
+      var cy = ((minY + maxY) / 2) * zoom;
+      container.scrollLeft = cx - viewW / 2;
+      container.scrollTop = cy - viewH / 2;
+    });
+  });
+};
 
 // ── Reload / Expand / Collapse ──────────────────────────────────────────────
 document.getElementById('btn-reload').onclick = function() {

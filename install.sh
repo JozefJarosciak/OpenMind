@@ -430,17 +430,7 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
     [ -d "$WORKSPACE_PATH" ] || die "Directory does not exist: $WORKSPACE_PATH"
     WORKSPACE_PATH="$(cd "$WORKSPACE_PATH" && pwd)"
 
-    # ── Detect OpenClaw binary ─────────────────────────────────────────────
-    OPENCLAW_CMD=""
-    for _c in "$(command -v openclaw 2>/dev/null || true)" \
-        /usr/bin/openclaw /usr/local/bin/openclaw \
-        "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw" \
-        /opt/openclaw/bin/openclaw; do
-      [ -n "${_c:-}" ] && [ -x "$_c" ] && { OPENCLAW_CMD="$_c"; ok "OpenClaw binary: $_c"; break; }
-    done
-    [ -z "$OPENCLAW_CMD" ] && OPENCLAW_CMD="/usr/bin/openclaw"
-
-    # ── Detect OpenClaw agent name ─────────────────────────────────────────
+    # ── Detect OpenClaw agent name (used as default app title) ─────────────
     DETECTED_AGENT="main"
     for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
       [ -f "$_cfg" ] || continue
@@ -449,14 +439,6 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
         [ -n "$_a" ] && { DETECTED_AGENT="$_a"; break; }
       fi
     done
-
-    # ── Detect run-as user ─────────────────────────────────────────────────
-    DETECTED_RUN_AS=""
-    if [ "$EUID" -eq 0 ] 2>/dev/null && id openclaw &>/dev/null 2>&1; then
-      DETECTED_RUN_AS="openclaw"
-    elif [ "$EUID" -eq 0 ] 2>/dev/null && [ -n "${SUDO_USER:-}" ]; then
-      DETECTED_RUN_AS="$SUDO_USER"
-    fi
 
     printf "\n"
 
@@ -483,9 +465,7 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
 
     # ── Optional settings ──────────────────────────────────────────────────
     printf "\n"
-    ask APP_TITLE        "App title"                                    "OpenMind"
-    ask OPENCLAW_AGENT   "OpenClaw agent name"                          "$DETECTED_AGENT"
-    ask OPENCLAW_RUN_AS  "Run openclaw as user (blank = container user)" "$DETECTED_RUN_AS"
+    ask APP_TITLE        "App title (shown as root node)"               "$DETECTED_AGENT"
 
     printf "\n  %s\n" "Network restriction:"
     printf "    %s\n" "1) None — allow all connections"
@@ -510,9 +490,6 @@ OPENMIND_PORT=$DOCKER_PORT
 OPENMIND_ADMIN_USER=$ADMIN_USER
 OPENMIND_ADMIN_PASS=$ADMIN_PASS
 OPENMIND_TITLE=$APP_TITLE
-OPENMIND_OPENCLAW_CMD=$OPENCLAW_CMD
-OPENMIND_OPENCLAW_AGENT=$OPENCLAW_AGENT
-OPENMIND_OPENCLAW_RUN_AS=$OPENCLAW_RUN_AS
 OPENMIND_NETWORK=$NETWORK_RESTRICTION
 OPENMIND_ALLOWED_IPS=$ALLOWED_IPS
 ENVEOF
@@ -613,7 +590,6 @@ except: print('')
     printf "  %-22s %s\n" "Install dir:"  "$INSTALL_DIR"
     printf "  %-22s %s\n" "Workspace:"    "$WORKSPACE_PATH"
     printf "  %-22s %s\n" "Admin user:"   "$ADMIN_USER"
-    printf "  %-22s %s\n" "Agent:"        "$OPENCLAW_AGENT"
     printf "  %-22s %s\n" "Network:"      "$NETWORK_RESTRICTION"
     printf "  %-22s %s\n" "Container:"    "openmind"
     printf "\n"
@@ -702,37 +678,10 @@ report_used_ports
 # ── Step 2: OpenClaw detection ─────────────────────────────────────────────────
 step 2 "Detecting OpenClaw"
 
-# --- Binary ---
-OPENCLAW_CMD=""
-for candidate in \
-    "$(command -v openclaw 2>/dev/null || true)" \
-    "/usr/bin/openclaw" "/usr/local/bin/openclaw" \
-    "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw" \
-    "/opt/openclaw/bin/openclaw" \
-    "/opt/homebrew/bin/openclaw" \
-    "$HOME/Library/Application Support/OpenClaw/openclaw"; do
-  [ -n "${candidate:-}" ] && [ -x "$candidate" ] && { OPENCLAW_CMD="$candidate"; break; }
-done
-
-if [ -n "$OPENCLAW_CMD" ]; then
-  ok "openclaw binary: $OPENCLAW_CMD"
-else
-  warn "openclaw binary not found in common locations"
-  ask OPENCLAW_CMD "Path to openclaw binary" "/usr/bin/openclaw"
-fi
-
 # --- Workspace path ---
 WORKSPACE_PATH=""
 
-# 1. Try running 'openclaw config' if the binary exists
-if [ -x "${OPENCLAW_CMD:-}" ]; then
-  _cw=$("$OPENCLAW_CMD" config --get workspace_path 2>/dev/null \
-        || "$OPENCLAW_CMD" config workspace 2>/dev/null \
-        || true)
-  [ -n "$_cw" ] && [ -d "$_cw" ] && WORKSPACE_PATH="$_cw"
-fi
-
-# 2. Try common JSON config file locations
+# 1. Try common JSON config file locations
 if [ -z "$WORKSPACE_PATH" ]; then
   for _cfg in \
       "$HOME/.openclaw/openclaw.json" \
@@ -785,7 +734,7 @@ if [ -z "$WORKSPACE_PATH" ]; then
   [ -d "$WORKSPACE_PATH" ] || die "Directory does not exist: $WORKSPACE_PATH\nCreate it or start OpenClaw once to initialise the workspace."
 fi
 
-# Detect openclaw agent name from config if possible
+# Detect openclaw agent name from config (used as default app title)
 DETECTED_AGENT="main"
 for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
   [ -f "$_cfg" ] || continue
@@ -794,14 +743,6 @@ for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
     [ -n "$_a" ] && { DETECTED_AGENT="$_a"; break; }
   fi
 done
-
-# Detect openclaw run_as user
-DETECTED_RUN_AS=""
-if [ "$EUID" -eq 0 ] && id openclaw &>/dev/null 2>&1; then
-  DETECTED_RUN_AS="openclaw"
-elif [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
-  DETECTED_RUN_AS="$SUDO_USER"
-fi
 
 # ── Step 3: Install location ───────────────────────────────────────────────────
 step 3 "Install location"
@@ -842,9 +783,7 @@ mkdir -p "$INSTALL_DIR/backups"
 # ── Step 4: Configuration ──────────────────────────────────────────────────────
 step 4 "Configuration"
 
-ask APP_TITLE        "App title"                                   "OpenMind"
-ask OPENCLAW_AGENT   "OpenClaw agent name"                         "$DETECTED_AGENT"
-ask OPENCLAW_RUN_AS  "Run openclaw as user (blank = current user)" "$DETECTED_RUN_AS"
+ask APP_TITLE        "App title (shown as root node)"              "$DETECTED_AGENT"
 ask BACKUP_PATH      "Backup directory"                            "$INSTALL_DIR/backups"
 ask SESSION_LIFETIME "Session lifetime in seconds"                 "86400"
 
@@ -869,9 +808,6 @@ step 5 "Writing config.php"
 
 OM_WORKSPACE="$WORKSPACE_PATH"          \
 OM_BACKUP="$BACKUP_PATH"               \
-OM_COMMAND="$OPENCLAW_CMD"             \
-OM_AGENT="$OPENCLAW_AGENT"             \
-OM_RUNAS="$OPENCLAW_RUN_AS"            \
 OM_NETWORK="$NETWORK_RESTRICTION"      \
 OM_IPS="$ALLOWED_IPS"                  \
 OM_TITLE="$APP_TITLE"                  \
@@ -881,9 +817,6 @@ OM_FILE="$INSTALL_DIR/config.php"      \
 $c = [
     "workspace_path"      => getenv("OM_WORKSPACE"),
     "backup_path"         => getenv("OM_BACKUP"),
-    "openclaw_command"    => getenv("OM_COMMAND"),
-    "openclaw_agent"      => getenv("OM_AGENT"),
-    "openclaw_run_as"     => getenv("OM_RUNAS"),
     "network_restriction" => getenv("OM_NETWORK"),
     "allowed_ips"         => getenv("OM_IPS"),
     "session_lifetime"    => (int) getenv("OM_SESSION"),

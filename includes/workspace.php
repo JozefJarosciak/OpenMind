@@ -242,7 +242,7 @@ function buildWorkspaceTree($config) {
         'format' => 'node_tree',
         'data'   => [
             'id'       => 'root',
-            'topic'    => $appTitle . ' Workspace',
+            'topic'    => $appTitle,
             'data'     => [
                 'background-color' => $config['color_root'],
                 'color'            => $config['color_node_fg'],
