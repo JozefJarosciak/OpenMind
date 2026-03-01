@@ -317,8 +317,15 @@ document.getElementById('btn-fit').onclick = function() {
 
 // ── Reload / Expand / Collapse ──────────────────────────────────────────────
 document.getElementById('btn-reload').onclick = function() {
-  jm.show(raw);
-  document.getElementById('status').textContent = fileCount + ' MD files reloaded';
+  document.getElementById('status').textContent = 'Reloading\u2026';
+  // Re-detect bot name (Telegram API), then full page reload to pick up all changes
+  fetch('', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'refreshTitle'})
+  }).catch(function(){}).finally(function() {
+    location.reload();
+  });
 };
 document.getElementById('btn-expand').onclick = function() {
   jm.expand_all();

@@ -430,16 +430,6 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
     [ -d "$WORKSPACE_PATH" ] || die "Directory does not exist: $WORKSPACE_PATH"
     WORKSPACE_PATH="$(cd "$WORKSPACE_PATH" && pwd)"
 
-    # ── Detect OpenClaw agent name (used as default app title) ─────────────
-    DETECTED_AGENT="main"
-    for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
-      [ -f "$_cfg" ] || continue
-      if command -v jq &>/dev/null; then
-        _a=$(jq -r '.agent // .default_agent // .defaultAgent // ""' "$_cfg" 2>/dev/null || true)
-        [ -n "$_a" ] && { DETECTED_AGENT="$_a"; break; }
-      fi
-    done
-
     printf "\n"
 
     # ── Port ───────────────────────────────────────────────────────────────
@@ -465,7 +455,6 @@ if [ "$HAS_DOCKER" -eq 1 ]; then
 
     # ── Optional settings ──────────────────────────────────────────────────
     printf "\n"
-    ask APP_TITLE        "App title (shown as root node)"               "$DETECTED_AGENT"
 
     printf "\n  %s\n" "Network restriction:"
     printf "    %s\n" "1) None — allow all connections"
@@ -497,7 +486,7 @@ OPENCLAW_HOME=${OPENCLAW_HOME:-$WORKSPACE_PATH}
 OPENMIND_PORT=$DOCKER_PORT
 OPENMIND_ADMIN_USER=$ADMIN_USER
 OPENMIND_ADMIN_PASS=$ADMIN_PASS
-OPENMIND_TITLE=$APP_TITLE
+OPENMIND_TITLE=
 OPENMIND_NETWORK=$NETWORK_RESTRICTION
 OPENMIND_ALLOWED_IPS=$ALLOWED_IPS
 ENVEOF
@@ -791,7 +780,6 @@ mkdir -p "$INSTALL_DIR/backups"
 # ── Step 4: Configuration ──────────────────────────────────────────────────────
 step 4 "Configuration"
 
-ask APP_TITLE        "App title (shown as root node)"              "$DETECTED_AGENT"
 ask BACKUP_PATH      "Backup directory"                            "$INSTALL_DIR/backups"
 ask SESSION_LIFETIME "Session lifetime in seconds"                 "86400"
 
@@ -814,11 +802,28 @@ esac
 # ── Step 5: Write config.php ───────────────────────────────────────────────────
 step 5 "Writing config.php"
 
+# Auto-detect bot display name via Telegram API
+BOT_DISPLAY_NAME=""
+for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
+  [ -f "$_cfg" ] || continue
+  BOT_DISPLAY_NAME=$("$PHP_BIN" -r '
+    $j = @json_decode(@file_get_contents($argv[1]), true);
+    $token = $j["channels"]["telegram"]["botToken"] ?? "";
+    if ($token) {
+      $ctx = stream_context_create(["http" => ["timeout" => 5]]);
+      $resp = @file_get_contents("https://api.telegram.org/bot" . $token . "/getMe", false, $ctx);
+      if ($resp) { $d = json_decode($resp, true); echo $d["result"]["first_name"] ?? ""; }
+    }
+  ' "$_cfg" 2>/dev/null || true)
+  [ -n "$BOT_DISPLAY_NAME" ] && break
+done
+[ -n "$BOT_DISPLAY_NAME" ] && ok "Detected bot name: $BOT_DISPLAY_NAME"
+
 OM_WORKSPACE="$WORKSPACE_PATH"          \
 OM_BACKUP="$BACKUP_PATH"               \
 OM_NETWORK="$NETWORK_RESTRICTION"      \
 OM_IPS="$ALLOWED_IPS"                  \
-OM_TITLE="$APP_TITLE"                  \
+OM_TITLE="${BOT_DISPLAY_NAME:-$DETECTED_AGENT}" \
 OM_SESSION="${SESSION_LIFETIME:-86400}" \
 OM_FILE="$INSTALL_DIR/config.php"      \
 "$PHP_BIN" -r '

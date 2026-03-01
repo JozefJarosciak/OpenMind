@@ -49,6 +49,24 @@ function makeBackup($filePath, $backupPath) {
     copy($filePath, $backupDir . '/' . basename($filePath));
 }
 
+// ── Refresh Title (re-detect bot name via Telegram API) ─────────────────────
+if ($action === 'refreshTitle') {
+    header('Content-Type: application/json');
+    $newTitle = detectBotDisplayName($config);
+    if (!$newTitle) $newTitle = detectAgentName($config);
+
+    if ($newTitle && $newTitle !== ($config['app_title'] ?? '')) {
+        $configFile = __DIR__ . '/../config.php';
+        $existingConfig = file_exists($configFile) ? (require $configFile) : [];
+        if (!is_array($existingConfig)) $existingConfig = [];
+        $existingConfig['app_title'] = $newTitle;
+        file_put_contents($configFile, "<?php\nreturn " . var_export($existingConfig, true) . ";\n");
+    }
+
+    echo json_encode(['success' => true, 'title' => $newTitle ?: ($config['app_title'] ?? 'OpenMind')]);
+    exit;
+}
+
 // ── Save Node ───────────────────────────────────────────────────────────────
 if ($action === 'saveNode') {
     header('Content-Type: application/json');

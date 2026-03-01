@@ -113,6 +113,14 @@ if [ ! -d /app/.git ]; then
   echo ">> Git repo initialized"
 fi
 
+# ── Copy openclaw.json for PHP access (openclaw-home may have 700 perms) ──
+if [ -f /openclaw-home/openclaw.json ]; then
+  cp /openclaw-home/openclaw.json /app/data/openclaw.json
+  chown www-data:www-data /app/data/openclaw.json
+  chmod 640 /app/data/openclaw.json
+  echo ">> Copied openclaw.json to /app/data/ for PHP access"
+fi
+
 # ── Fix permissions ────────────────────────────────────────────────────────
 chown -R www-data:www-data "$DATA_DIR"
 chmod 600 "$AUTH_DB" 2>/dev/null || true

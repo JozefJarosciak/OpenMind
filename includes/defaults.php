@@ -88,9 +88,53 @@ function get_config(): array {
 }
 
 /**
+ * Find the OpenClaw config file (openclaw.json) from known locations.
+ */
+function findOpenclawConfig(array $config): ?string {
+    $candidates = [];
+
+    // Docker: entrypoint copies it here (readable by www-data)
+    $candidates[] = '/app/data/openclaw.json';
+
+    // Docker mount (may not be readable by www-data if 700 perms)
+    $candidates[] = '/openclaw-home/openclaw.json';
+
+    // Bare metal: derive from workspace path
+    $ws = rtrim($config['workspace_path'], '/');
+    if (basename($ws) === 'workspace') {
+        $candidates[] = dirname($ws) . '/openclaw.json';
+    }
+
+    foreach ($candidates as $f) {
+        if (@is_readable($f)) return $f;
+    }
+    return null;
+}
+
+/**
+ * Detect the Telegram bot display name via the Telegram Bot API.
+ * Reads the bot token from openclaw.json and calls getMe.
+ * Returns the bot's first_name (e.g. "JJ-TRD_bot") or null on failure.
+ */
+function detectBotDisplayName(array $config): ?string {
+    $ocConfig = findOpenclawConfig($config);
+    if (!$ocConfig) return null;
+
+    $j = @json_decode(@file_get_contents($ocConfig), true);
+    $token = $j['channels']['telegram']['botToken'] ?? '';
+    if (!$token) return null;
+
+    $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+    $resp = @file_get_contents("https://api.telegram.org/bot{$token}/getMe", false, $ctx);
+    if (!$resp) return null;
+
+    $data = @json_decode($resp, true);
+    return $data['result']['first_name'] ?? null;
+}
+
+/**
  * Detect the OpenClaw agent name from the directory structure.
- * Lightweight fallback — the real bot name detection (Telegram API)
- * happens in the Docker entrypoint or installer, which write to config.php.
+ * Lightweight fallback when Telegram API is unavailable.
  */
 function detectAgentName(array $config): ?string {
     $homes = [];
@@ -114,12 +158,22 @@ function detectAgentName(array $config): ?string {
 }
 
 /**
- * Get the display title: detected agent name or configured app_title.
+ * Get the display title from config (fast, no API calls).
+ * The config value is set by the Docker entrypoint or refreshTitle API action.
  */
 function getDisplayTitle(array $config): string {
     static $title = null;
     if ($title !== null) return $title;
-    $title = detectAgentName($config) ?: $config['app_title'];
+
+    // Use configured app_title if it's been set to something meaningful
+    $configured = $config['app_title'] ?? '';
+    if ($configured && $configured !== 'OpenMind') {
+        $title = $configured;
+        return $title;
+    }
+
+    // Fallback: try lightweight directory-based detection
+    $title = detectAgentName($config) ?: ($configured ?: 'OpenMind');
     return $title;
 }
 
