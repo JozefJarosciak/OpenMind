@@ -127,6 +127,8 @@ if [ ! -d /app/.git ]; then
   cd /
   echo ">> Git repo initialized"
 fi
+# Allow www-data (PHP-FPM) to read the git repo for update checks
+git config --global --add safe.directory /app
 
 # ── Copy openclaw.json for PHP access (openclaw-home may have 700 perms) ──
 if [ -f /openclaw-home/openclaw.json ]; then

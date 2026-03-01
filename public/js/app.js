@@ -241,7 +241,7 @@ function openPanel(node) {
     var file = data.file || '';
     document.getElementById('panel-file').textContent = file
       ? '\uD83D\uDCC2 ' + workspacePath + '/' + file
-      : '(sub-section \u2014 open parent file node to save changes)';
+      : '';
     document.getElementById('panel-editor').dataset.file = file;
     if (file) {
       tuiEditor.setMarkdown('Loading\u2026');
@@ -377,7 +377,7 @@ window.saveNodeContent = function() {
   var file = document.getElementById('panel-editor').dataset.file;
   var content = tuiEditor ? tuiEditor.getMarkdown() : '';
   if (!file) {
-    alert('No file associated \u2014 this is a sub-heading node.\nEdit the parent file node to change its content.');
+    alert('No file associated with this node.');
     return;
   }
   document.getElementById('status').textContent = 'Saving\u2026';

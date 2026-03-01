@@ -107,6 +107,9 @@ function buildFileNode($file, $workspace, $config) {
 
     $headingTree = resolveTree($roots, $nodes);
 
+    // Propagate file path to all heading nodes so they can be saved
+    array_walk_recursive_nodes($headingTree, $rel);
+
     return [
         'id'       => uid(),
         'topic'    => $basename,
@@ -118,6 +121,15 @@ function buildFileNode($file, $workspace, $config) {
         'children' => $headingTree,
         'expanded' => false,
     ];
+}
+
+function array_walk_recursive_nodes(&$nodes, $file) {
+    foreach ($nodes as &$node) {
+        $node['data']['file'] = $file;
+        if (!empty($node['children'])) {
+            array_walk_recursive_nodes($node['children'], $file);
+        }
+    }
 }
 
 function assignBranchColor(&$node, $color) {
