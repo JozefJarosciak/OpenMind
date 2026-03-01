@@ -80,8 +80,7 @@ if (!empty($_SESSION['remember'])) {
 // ── Logout ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
     session_destroy();
-    // Clear remembered username cookie
-    setcookie('openmind_user', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
+    // Keep the openmind_user cookie so the login form pre-fills the username
     header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
