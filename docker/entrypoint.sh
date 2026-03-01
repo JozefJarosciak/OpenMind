@@ -10,8 +10,23 @@ mkdir -p "$DATA_DIR/backups"
 # ── Detect OpenClaw bot/agent name ────────────────────────────────────────
 BOT_NAME=""
 
-# 1. Try to get the Telegram bot display name from the openclaw config
-if [ -f /openclaw-home/openclaw.json ]; then
+# 1. Try IDENTITY.md in the workspace (set during openclaw install)
+WORKSPACE_MNT="${OPENMIND_WORKSPACE:-/workspace}"
+if [ -f "$WORKSPACE_MNT/IDENTITY.md" ]; then
+  BOT_NAME=$(php -r '
+    $content = @file_get_contents($argv[1]);
+    if ($content && preg_match("/\*\*Name:\*\*\s*(.+)/i", $content, $m)) {
+      $name = trim($m[1]);
+      if ($name && $name[0] !== "_" && stripos($name, "pick something") === false) {
+        echo $name;
+      }
+    }
+  ' "$WORKSPACE_MNT/IDENTITY.md" 2>/dev/null || true)
+  [ -n "$BOT_NAME" ] && echo ">> Detected name from IDENTITY.md: $BOT_NAME"
+fi
+
+# 2. Try Telegram Bot API (gets the bot display name)
+if [ -z "$BOT_NAME" ] && [ -f /openclaw-home/openclaw.json ]; then
   BOT_NAME=$(php -r '
     $j = @json_decode(file_get_contents("/openclaw-home/openclaw.json"), true);
     $token = $j["channels"]["telegram"]["botToken"] ?? "";
@@ -24,10 +39,10 @@ if [ -f /openclaw-home/openclaw.json ]; then
       }
     }
   ' 2>/dev/null || true)
-  [ -n "$BOT_NAME" ] && echo ">> Detected bot name: $BOT_NAME"
+  [ -n "$BOT_NAME" ] && echo ">> Detected bot name from Telegram API: $BOT_NAME"
 fi
 
-# 2. Fall back to agent directory name
+# 3. Fall back to agent directory name
 if [ -z "$BOT_NAME" ] && [ -d /openclaw-home/agents ]; then
   for d in /openclaw-home/agents/*/; do
     _name=$(basename "$d")

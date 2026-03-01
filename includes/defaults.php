@@ -88,6 +88,29 @@ function get_config(): array {
 }
 
 /**
+ * Detect the bot name from IDENTITY.md in the workspace.
+ * Parses the **Name:** field. Returns null if not found or still a template.
+ */
+function detectNameFromIdentity(array $config): ?string {
+    $ws = rtrim($config['workspace_path'], '/');
+    $file = $ws . '/IDENTITY.md';
+    if (!@is_readable($file)) return null;
+
+    $content = @file_get_contents($file);
+    if (!$content) return null;
+
+    // Match "**Name:** <value>" on one line, or "**Name:**\n  <value>" on the next
+    if (preg_match('/\*\*Name:\*\*\s*(.+)/i', $content, $m)) {
+        $name = trim($m[1]);
+        // Skip template placeholders
+        if ($name && $name[0] !== '_' && stripos($name, 'pick something') === false) {
+            return $name;
+        }
+    }
+    return null;
+}
+
+/**
  * Find the OpenClaw config file (openclaw.json) from known locations.
  */
 function findOpenclawConfig(array $config): ?string {
@@ -117,6 +140,11 @@ function findOpenclawConfig(array $config): ?string {
  * Returns the bot's first_name (e.g. "JJ-TRD_bot") or null on failure.
  */
 function detectBotDisplayName(array $config): ?string {
+    // 1. Try IDENTITY.md first (fastest, no network needed)
+    $name = detectNameFromIdentity($config);
+    if ($name) return $name;
+
+    // 2. Fall back to Telegram Bot API
     $ocConfig = findOpenclawConfig($config);
     if (!$ocConfig) return null;
 

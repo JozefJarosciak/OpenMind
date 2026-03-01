@@ -802,22 +802,40 @@ esac
 # ── Step 5: Write config.php ───────────────────────────────────────────────────
 step 5 "Writing config.php"
 
-# Auto-detect bot display name via Telegram API
+# Auto-detect bot display name: IDENTITY.md → Telegram API → agent dir name
 BOT_DISPLAY_NAME=""
-for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
-  [ -f "$_cfg" ] || continue
+
+# 1. Try IDENTITY.md in the workspace
+if [ -f "$WORKSPACE_PATH/IDENTITY.md" ]; then
   BOT_DISPLAY_NAME=$("$PHP_BIN" -r '
-    $j = @json_decode(@file_get_contents($argv[1]), true);
-    $token = $j["channels"]["telegram"]["botToken"] ?? "";
-    if ($token) {
-      $ctx = stream_context_create(["http" => ["timeout" => 5]]);
-      $resp = @file_get_contents("https://api.telegram.org/bot" . $token . "/getMe", false, $ctx);
-      if ($resp) { $d = json_decode($resp, true); echo $d["result"]["first_name"] ?? ""; }
+    $content = @file_get_contents($argv[1]);
+    if ($content && preg_match("/\*\*Name:\*\*\s*(.+)/i", $content, $m)) {
+      $name = trim($m[1]);
+      if ($name && $name[0] !== "_" && stripos($name, "pick something") === false) {
+        echo $name;
+      }
     }
-  ' "$_cfg" 2>/dev/null || true)
-  [ -n "$BOT_DISPLAY_NAME" ] && break
-done
-[ -n "$BOT_DISPLAY_NAME" ] && ok "Detected bot name: $BOT_DISPLAY_NAME"
+  ' "$WORKSPACE_PATH/IDENTITY.md" 2>/dev/null || true)
+  [ -n "$BOT_DISPLAY_NAME" ] && ok "Detected name from IDENTITY.md: $BOT_DISPLAY_NAME"
+fi
+
+# 2. Try Telegram Bot API
+if [ -z "$BOT_DISPLAY_NAME" ]; then
+  for _cfg in "$HOME/.openclaw/openclaw.json" "$HOME/.openclaw/config.json"; do
+    [ -f "$_cfg" ] || continue
+    BOT_DISPLAY_NAME=$("$PHP_BIN" -r '
+      $j = @json_decode(@file_get_contents($argv[1]), true);
+      $token = $j["channels"]["telegram"]["botToken"] ?? "";
+      if ($token) {
+        $ctx = stream_context_create(["http" => ["timeout" => 5]]);
+        $resp = @file_get_contents("https://api.telegram.org/bot" . $token . "/getMe", false, $ctx);
+        if ($resp) { $d = json_decode($resp, true); echo $d["result"]["first_name"] ?? ""; }
+      }
+    ' "$_cfg" 2>/dev/null || true)
+    [ -n "$BOT_DISPLAY_NAME" ] && break
+  done
+  [ -n "$BOT_DISPLAY_NAME" ] && ok "Detected bot name from Telegram API: $BOT_DISPLAY_NAME"
+fi
 
 OM_WORKSPACE="$WORKSPACE_PATH"          \
 OM_BACKUP="$BACKUP_PATH"               \
