@@ -80,6 +80,8 @@ if (!empty($_SESSION['remember'])) {
 // ── Logout ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
     session_destroy();
+    // Clear remembered username cookie
+    setcookie('openmind_user', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
     header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
@@ -118,7 +120,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
                 $db->close();
                 session_regenerate_id(true);
                 $_SESSION['user'] = $username;
-                if (!empty($_POST['remember'])) $_SESSION['remember'] = true;
+                if (!empty($_POST['remember'])) {
+                    $_SESSION['remember'] = true;
+                    // Save username in cookie so the login form can pre-fill it
+                    setcookie('openmind_user', $username, [
+                        'expires'  => time() + $rememberLifetime,
+                        'path'     => '/',
+                        'secure'   => isset($_SERVER['HTTPS']),
+                        'httponly' => false,  // needs to be readable for form pre-fill
+                        'samesite' => 'Strict',
+                    ]);
+                }
                 header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
                 exit;
             }
@@ -154,6 +166,10 @@ if (!isset($_SESSION['user'])) {
 
     $err = $loginError ? '<div class="error">' . htmlspecialchars($loginError) . '</div>' : '';
     $appTitle = htmlspecialchars(getDisplayTitle($config));
+    $savedUser = htmlspecialchars($_COOKIE['openmind_user'] ?? '');
+    $rememberChecked = $savedUser ? ' checked' : '';
+    $focusUser = $savedUser ? '' : ' autofocus';
+    $focusPass = $savedUser ? ' autofocus' : '';
     echo <<<LOGIN_PAGE
 <!DOCTYPE html>
 <html>
@@ -185,14 +201,14 @@ body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',sans-serif;display:
     <input type="hidden" name="action" value="login">
     <div class="field">
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" required autofocus autocomplete="username">
+      <input type="text" id="username" name="username" value="{$savedUser}" required{$focusUser} autocomplete="username">
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" required autocomplete="current-password">
+      <input type="password" id="password" name="password" required{$focusPass} autocomplete="current-password">
     </div>
     <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.2rem">
-      <input type="checkbox" id="remember" name="remember" value="1" style="width:auto;accent-color:#89b4fa;cursor:pointer">
+      <input type="checkbox" id="remember" name="remember" value="1"{$rememberChecked} style="width:auto;accent-color:#89b4fa;cursor:pointer">
       <label for="remember" style="margin:0;font-size:.82rem;cursor:pointer;color:#a6adc8">Remember me</label>
     </div>
     <button type="submit">Sign In</button>
