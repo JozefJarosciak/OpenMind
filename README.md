@@ -8,15 +8,15 @@ Interactive mindmap workspace viewer for [OpenClaw](https://openclaw.ai). Turns 
 
 ## Quick Install via OpenClaw
 
-Already have OpenClaw running? Just message your bot and ask it to install OpenMind. Pick the example that fits your setup:
+Already have OpenClaw running? Just ask your agent to install OpenMind. You can message your bot directly or run it from the command line.
 
-**If you already have a domain** — install as a subdomain (e.g. `mind.yourdomain.com`):
+**If you have a domain** — make it accessible on the web:
 
 ```
 Install OpenMind from https://github.com/JozefJarosciak/OpenMind.git — clone to
 ~/openmind, configure Docker with my workspace, create an admin user with a strong
-password, start on port 8080, set up a reverse proxy so it's accessible at
-mind.mydomain.com with HTTPS, and give me the URL.
+password, start on port 8080, make it available at example.com/openmind with HTTPS,
+and give me the URL.
 ```
 
 **If you don't have a domain** — secure it with Tailscale so only your devices can reach it:
@@ -27,7 +27,13 @@ Install OpenMind from https://github.com/JozefJarosciak/OpenMind.git — clone t
 password, start on port 8080, use tailscale network restriction, then give me the URL.
 ```
 
-Your agent will handle cloning the repo, writing the `.env`, building the Docker image, and starting the container. It already knows where your workspace is.
+**From the command line:**
+
+```bash
+openclaw -m "Install OpenMind from https://github.com/JozefJarosciak/OpenMind.git — clone to ~/openmind, configure Docker with my workspace, create admin user with a strong password, start on port 8080 with tailscale restriction, then give me the URL."
+```
+
+Your agent handles cloning, configuration, Docker setup, and startup. It already knows where your workspace is.
 
 ---
 
