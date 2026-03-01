@@ -35,6 +35,8 @@ openclaw -m "Install OpenMind from https://github.com/JozefJarosciak/OpenMind.gi
 
 Your agent handles cloning, configuration, Docker setup, and startup. It already knows where your workspace is.
 
+You can customize any of these in your prompt: **port** (default 8080), **admin username** (default `admin`), **admin password**, and **network restriction** (`none`, `tailscale`, or custom IP ranges). The bot name is auto-detected from your OpenClaw config.
+
 ---
 
 ## Installation
@@ -50,11 +52,14 @@ curl -fsSL https://raw.githubusercontent.com/JozefJarosciak/OpenMind/main/instal
 bash install.sh
 ```
 
-The installer will:
-- Install Docker for you if it's not already installed
-- Auto-detect your OpenClaw workspace and agent name
-- Walk you through port, admin credentials, network restriction, and app title
-- Build and start the container — ready in about a minute
+The installer auto-detects your OpenClaw workspace and bot name, then walks you through:
+
+- **Port** — which port to run on (default 8080, auto-picks another if taken)
+- **Admin username** — login username (default `admin`)
+- **Admin password** — must be 8+ characters with upper, lower, number, and special character
+- **Network restriction** — `none` (allow all), `tailscale` (recommended for remote servers), or custom IP/CIDR ranges
+
+It will also install Docker for you if it's not already present, build the image, and start the container — ready in about a minute.
 
 **Option B — Manual Docker setup**
 
