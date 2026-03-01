@@ -39,9 +39,9 @@ You can customize any of these in your prompt: **port** (default 8080), **admin 
 
 ---
 
-## Installation
+## Manual Installation
 
-OpenMind runs anywhere Docker runs. Pick your OS below.
+Prefer to do it yourself? OpenMind runs anywhere Docker runs. Pick your OS below.
 
 ### Linux (Ubuntu, Debian, Fedora, Arch, etc.)
 
