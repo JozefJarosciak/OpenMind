@@ -77,10 +77,64 @@ if (!empty($_SESSION['remember'])) {
     setcookie(session_name(), session_id(), $cookieParams);
 }
 
+// ── Persistent "Remember Me" Token ──────────────────────────────────────────
+// Auto-login via remember token cookie if no active session
+if (!isset($_SESSION['user']) && !empty($_COOKIE['openmind_token']) && file_exists($authDb)) {
+    $db = new SQLite3($authDb);
+    $db->exec('CREATE TABLE IF NOT EXISTS remember_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL
+    )');
+    // Prune expired tokens
+    $db->exec('DELETE FROM remember_tokens WHERE expires_at < ' . time());
+
+    $rawToken = $_COOKIE['openmind_token'];
+    $tokenHash = hash('sha256', $rawToken);
+    $stmt = $db->prepare('SELECT username FROM remember_tokens WHERE token_hash = :h AND expires_at > :now');
+    $stmt->bindValue(':h', $tokenHash, SQLITE3_TEXT);
+    $stmt->bindValue(':now', time(), SQLITE3_INTEGER);
+    $row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
+    if ($row) {
+        // Valid token — auto-login
+        session_regenerate_id(true);
+        $_SESSION['user'] = $row['username'];
+        $_SESSION['remember'] = true;
+        // Refresh the token (rotate for security)
+        $db->exec("DELETE FROM remember_tokens WHERE token_hash = '" . $db->escapeString($tokenHash) . "'");
+        $newToken = bin2hex(random_bytes(32));
+        $newHash = hash('sha256', $newToken);
+        $expires = time() + $rememberLifetime;
+        $ins = $db->prepare('INSERT INTO remember_tokens (username, token_hash, expires_at) VALUES (:u, :h, :e)');
+        $ins->bindValue(':u', $row['username'], SQLITE3_TEXT);
+        $ins->bindValue(':h', $newHash, SQLITE3_TEXT);
+        $ins->bindValue(':e', $expires, SQLITE3_INTEGER);
+        $ins->execute();
+        setcookie('openmind_token', $newToken, [
+            'expires'  => $expires,
+            'path'     => '/',
+            'secure'   => isset($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+    }
+    $db->close();
+}
+
 // ── Logout ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
+    // Delete remember token from DB
+    if (!empty($_COOKIE['openmind_token']) && file_exists($authDb)) {
+        $db = new SQLite3($authDb);
+        $tokenHash = hash('sha256', $_COOKIE['openmind_token']);
+        $db->exec("DELETE FROM remember_tokens WHERE token_hash = '" . $db->escapeString($tokenHash) . "'");
+        $db->close();
+    }
+    // Clear cookies
+    setcookie('openmind_token', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
+    setcookie('openmind_user', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
     session_destroy();
-    // Keep the openmind_user cookie so the login form pre-fills the username
     header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
 }
@@ -94,6 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ip TEXT NOT NULL,
             attempted_at INTEGER NOT NULL
+        )');
+        $db->exec('CREATE TABLE IF NOT EXISTS remember_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            token_hash TEXT NOT NULL,
+            expires_at INTEGER NOT NULL
         )');
 
         $clientIP = $_SERVER['REMOTE_ADDR'] ?? '';
@@ -116,20 +176,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
                 $clr = $db->prepare('DELETE FROM login_attempts WHERE ip = :ip');
                 $clr->bindValue(':ip', $clientIP, SQLITE3_TEXT);
                 $clr->execute();
-                $db->close();
+
                 session_regenerate_id(true);
                 $_SESSION['user'] = $username;
+
                 if (!empty($_POST['remember'])) {
                     $_SESSION['remember'] = true;
-                    // Save username in cookie so the login form can pre-fill it
-                    setcookie('openmind_user', $username, [
-                        'expires'  => time() + $rememberLifetime,
+                    // Generate persistent remember token
+                    $rawToken = bin2hex(random_bytes(32));
+                    $tokenHash = hash('sha256', $rawToken);
+                    $expires = time() + $rememberLifetime;
+                    // Remove old tokens for this user (limit to 5 devices)
+                    $db->exec("DELETE FROM remember_tokens WHERE username = '" . $db->escapeString($username) . "' AND id NOT IN (SELECT id FROM remember_tokens WHERE username = '" . $db->escapeString($username) . "' ORDER BY expires_at DESC LIMIT 4)");
+                    $ins = $db->prepare('INSERT INTO remember_tokens (username, token_hash, expires_at) VALUES (:u, :h, :e)');
+                    $ins->bindValue(':u', $username, SQLITE3_TEXT);
+                    $ins->bindValue(':h', $tokenHash, SQLITE3_TEXT);
+                    $ins->bindValue(':e', $expires, SQLITE3_INTEGER);
+                    $ins->execute();
+                    setcookie('openmind_token', $rawToken, [
+                        'expires'  => $expires,
                         'path'     => '/',
                         'secure'   => isset($_SERVER['HTTPS']),
-                        'httponly' => false,  // needs to be readable for form pre-fill
+                        'httponly' => true,
+                        'samesite' => 'Strict',
+                    ]);
+                    // Also save username for the login form
+                    setcookie('openmind_user', $username, [
+                        'expires'  => $expires,
+                        'path'     => '/',
+                        'secure'   => isset($_SERVER['HTTPS']),
+                        'httponly' => false,
                         'samesite' => 'Strict',
                     ]);
                 }
+
+                $db->close();
                 header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
                 exit;
             }
