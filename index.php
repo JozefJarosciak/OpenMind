@@ -265,7 +265,7 @@ $workspacePath = $config['workspace_path'];
 <!-- Data & Scripts -->
 <script>
 window.APP_CONFIG = <?= json_encode([
-  'appTitle'              => $displayTitle,
+  'appTitle'              => getDisplayTitle($config),
   'workspacePath'         => $config['workspace_path'],
   'passwordMinLength'     => $config['password_min_length'],
   'passwordRules'         => $config['password_rules'],
