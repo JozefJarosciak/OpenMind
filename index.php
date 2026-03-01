@@ -110,7 +110,7 @@ $workspacePath = $config['workspace_path'];
   <span id="status">Loading&hellip;</span>
   <button onclick="toggleSettings()">&#9881; Settings</button>
   <span style="font-size:.78rem;opacity:.55;white-space:nowrap"><?= $userName ?></span>
-  <form method="POST" style="display:inline"><input type="hidden" name="action" value="logout"><button type="submit">Logout</button></form>
+  <form method="POST" style="display:inline" onsubmit="localStorage.removeItem('_om_c');localStorage.removeItem('_om_k')"><input type="hidden" name="action" value="logout"><button type="submit">Logout</button></form>
 </header>
 
 <div id="main">

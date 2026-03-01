@@ -77,63 +77,8 @@ if (!empty($_SESSION['remember'])) {
     setcookie(session_name(), session_id(), $cookieParams);
 }
 
-// ── Persistent "Remember Me" Token ──────────────────────────────────────────
-// Auto-login via remember token cookie if no active session
-if (!isset($_SESSION['user']) && !empty($_COOKIE['openmind_token']) && file_exists($authDb)) {
-    $db = new SQLite3($authDb);
-    $db->exec('CREATE TABLE IF NOT EXISTS remember_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL,
-        token_hash TEXT NOT NULL,
-        expires_at INTEGER NOT NULL
-    )');
-    // Prune expired tokens
-    $db->exec('DELETE FROM remember_tokens WHERE expires_at < ' . time());
-
-    $rawToken = $_COOKIE['openmind_token'];
-    $tokenHash = hash('sha256', $rawToken);
-    $stmt = $db->prepare('SELECT username FROM remember_tokens WHERE token_hash = :h AND expires_at > :now');
-    $stmt->bindValue(':h', $tokenHash, SQLITE3_TEXT);
-    $stmt->bindValue(':now', time(), SQLITE3_INTEGER);
-    $row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
-    if ($row) {
-        // Valid token — auto-login
-        session_regenerate_id(true);
-        $_SESSION['user'] = $row['username'];
-        $_SESSION['remember'] = true;
-        // Refresh the token (rotate for security)
-        $db->exec("DELETE FROM remember_tokens WHERE token_hash = '" . $db->escapeString($tokenHash) . "'");
-        $newToken = bin2hex(random_bytes(32));
-        $newHash = hash('sha256', $newToken);
-        $expires = time() + $rememberLifetime;
-        $ins = $db->prepare('INSERT INTO remember_tokens (username, token_hash, expires_at) VALUES (:u, :h, :e)');
-        $ins->bindValue(':u', $row['username'], SQLITE3_TEXT);
-        $ins->bindValue(':h', $newHash, SQLITE3_TEXT);
-        $ins->bindValue(':e', $expires, SQLITE3_INTEGER);
-        $ins->execute();
-        setcookie('openmind_token', $newToken, [
-            'expires'  => $expires,
-            'path'     => '/',
-            'secure'   => isset($_SERVER['HTTPS']),
-            'httponly' => true,
-            'samesite' => 'Strict',
-        ]);
-    }
-    $db->close();
-}
-
 // ── Logout ──────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
-    // Delete remember token from DB
-    if (!empty($_COOKIE['openmind_token']) && file_exists($authDb)) {
-        $db = new SQLite3($authDb);
-        $tokenHash = hash('sha256', $_COOKIE['openmind_token']);
-        $db->exec("DELETE FROM remember_tokens WHERE token_hash = '" . $db->escapeString($tokenHash) . "'");
-        $db->close();
-    }
-    // Clear cookies
-    setcookie('openmind_token', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
-    setcookie('openmind_user', '', ['expires' => 1, 'path' => '/', 'samesite' => 'Strict']);
     session_destroy();
     header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
     exit;
@@ -148,12 +93,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ip TEXT NOT NULL,
             attempted_at INTEGER NOT NULL
-        )');
-        $db->exec('CREATE TABLE IF NOT EXISTS remember_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT NOT NULL,
-            token_hash TEXT NOT NULL,
-            expires_at INTEGER NOT NULL
         )');
 
         $clientIP = $_SERVER['REMOTE_ADDR'] ?? '';
@@ -176,41 +115,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'login
                 $clr = $db->prepare('DELETE FROM login_attempts WHERE ip = :ip');
                 $clr->bindValue(':ip', $clientIP, SQLITE3_TEXT);
                 $clr->execute();
+                $db->close();
 
                 session_regenerate_id(true);
                 $_SESSION['user'] = $username;
-
                 if (!empty($_POST['remember'])) {
                     $_SESSION['remember'] = true;
-                    // Generate persistent remember token
-                    $rawToken = bin2hex(random_bytes(32));
-                    $tokenHash = hash('sha256', $rawToken);
-                    $expires = time() + $rememberLifetime;
-                    // Remove old tokens for this user (limit to 5 devices)
-                    $db->exec("DELETE FROM remember_tokens WHERE username = '" . $db->escapeString($username) . "' AND id NOT IN (SELECT id FROM remember_tokens WHERE username = '" . $db->escapeString($username) . "' ORDER BY expires_at DESC LIMIT 4)");
-                    $ins = $db->prepare('INSERT INTO remember_tokens (username, token_hash, expires_at) VALUES (:u, :h, :e)');
-                    $ins->bindValue(':u', $username, SQLITE3_TEXT);
-                    $ins->bindValue(':h', $tokenHash, SQLITE3_TEXT);
-                    $ins->bindValue(':e', $expires, SQLITE3_INTEGER);
-                    $ins->execute();
-                    setcookie('openmind_token', $rawToken, [
-                        'expires'  => $expires,
-                        'path'     => '/',
-                        'secure'   => isset($_SERVER['HTTPS']),
-                        'httponly' => true,
-                        'samesite' => 'Strict',
-                    ]);
-                    // Also save username for the login form
-                    setcookie('openmind_user', $username, [
-                        'expires'  => $expires,
-                        'path'     => '/',
-                        'secure'   => isset($_SERVER['HTTPS']),
-                        'httponly' => false,
-                        'samesite' => 'Strict',
-                    ]);
                 }
 
-                $db->close();
                 header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
                 exit;
             }
@@ -245,11 +157,8 @@ if (!isset($_SESSION['user'])) {
     }
 
     $err = $loginError ? '<div class="error">' . htmlspecialchars($loginError) . '</div>' : '';
+    $hasError = $loginError ? 'true' : 'false';
     $appTitle = htmlspecialchars(getDisplayTitle($config));
-    $savedUser = htmlspecialchars($_COOKIE['openmind_user'] ?? '');
-    $rememberChecked = $savedUser ? ' checked' : '';
-    $focusUser = $savedUser ? '' : ' autofocus';
-    $focusPass = $savedUser ? ' autofocus' : '';
     echo <<<LOGIN_PAGE
 <!DOCTYPE html>
 <html>
@@ -281,19 +190,104 @@ body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',sans-serif;display:
     <input type="hidden" name="action" value="login">
     <div class="field">
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" value="{$savedUser}" required{$focusUser} autocomplete="username">
+      <input type="text" id="username" name="username" required autocomplete="username">
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" required{$focusPass} autocomplete="current-password">
+      <input type="password" id="password" name="password" required autocomplete="current-password">
     </div>
     <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.2rem">
-      <input type="checkbox" id="remember" name="remember" value="1"{$rememberChecked} style="width:auto;accent-color:#89b4fa;cursor:pointer">
+      <input type="checkbox" id="remember" name="remember" value="1" style="width:auto;accent-color:#89b4fa;cursor:pointer">
       <label for="remember" style="margin:0;font-size:.82rem;cursor:pointer;color:#a6adc8">Remember me</label>
     </div>
     <button type="submit">Sign In</button>
   </form>
 </div>
+<script>
+(function(){
+  // ── AES-GCM encrypted credential storage in localStorage ──
+  var STORE_KEY = '_om_c';
+  var EK_KEY    = '_om_k';
+  var hasError  = {$hasError};
+
+  function getEncKey() {
+    return Promise.resolve().then(function() {
+      var stored = localStorage.getItem(EK_KEY);
+      if (stored) {
+        return crypto.subtle.importKey('jwk', JSON.parse(stored), {name:'AES-GCM'}, true, ['encrypt','decrypt']);
+      }
+      return crypto.subtle.generateKey({name:'AES-GCM', length:256}, true, ['encrypt','decrypt']).then(function(key) {
+        return crypto.subtle.exportKey('jwk', key).then(function(jwk) {
+          localStorage.setItem(EK_KEY, JSON.stringify(jwk));
+          return key;
+        });
+      });
+    });
+  }
+
+  function encryptAndStore(user, pass) {
+    return getEncKey().then(function(key) {
+      var data = JSON.stringify({u: user, p: pass});
+      var iv = crypto.getRandomValues(new Uint8Array(12));
+      var enc = new TextEncoder();
+      return crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key, enc.encode(data)).then(function(buf) {
+        var arr = new Uint8Array(buf);
+        var combined = new Uint8Array(iv.length + arr.length);
+        combined.set(iv);
+        combined.set(arr, iv.length);
+        localStorage.setItem(STORE_KEY, btoa(String.fromCharCode.apply(null, combined)));
+      });
+    });
+  }
+
+  function decryptStored() {
+    return getEncKey().then(function(key) {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      var bytes = Uint8Array.from(atob(raw), function(c){ return c.charCodeAt(0); });
+      var iv = bytes.slice(0, 12);
+      var data = bytes.slice(12);
+      return crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, data).then(function(buf) {
+        return JSON.parse(new TextDecoder().decode(buf));
+      });
+    }).catch(function() {
+      // Corrupted or key mismatch — clear it
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(EK_KEY);
+      return null;
+    });
+  }
+
+  // On form submit — save credentials if "remember me" is checked
+  document.getElementById('login-form').addEventListener('submit', function() {
+    var user = document.getElementById('username').value;
+    var pass = document.getElementById('password').value;
+    var rem  = document.getElementById('remember').checked;
+    if (rem && user && pass) {
+      encryptAndStore(user, pass);
+    } else if (!rem) {
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(EK_KEY);
+    }
+  });
+
+  // On page load — if we have stored creds and no login error, auto-fill and submit
+  if (!hasError) {
+    decryptStored().then(function(creds) {
+      if (!creds) return;
+      document.getElementById('username').value = creds.u;
+      document.getElementById('password').value = creds.p;
+      document.getElementById('remember').checked = true;
+      // Auto-submit the form
+      document.getElementById('login-form').submit();
+    });
+  } else {
+    // Login failed with stored creds — clear them so user can fix manually
+    localStorage.removeItem(STORE_KEY);
+    localStorage.removeItem(EK_KEY);
+  }
+})();
+</script>
 </body>
 </html>
 LOGIN_PAGE;
