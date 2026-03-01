@@ -277,7 +277,7 @@ body{background:#1e1e2e;color:#cdd6f4;font-family:'Segoe UI',sans-serif;display:
   <h1>{$appTitle}</h1>
   <p class="subtitle">Sign in to access the workspace</p>
   {$err}
-  <form method="POST" action="" autocomplete="on">
+  <form id="login-form" name="login-form" method="POST" action="" autocomplete="on">
     <input type="hidden" name="action" value="login">
     <div class="field">
       <label for="username">Username</label>

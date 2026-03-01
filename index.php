@@ -165,15 +165,15 @@ $workspacePath = $config['workspace_path'];
         <h3>Change Password</h3>
         <div class="field">
           <label for="current-pw">Current Password</label>
-          <input type="password" id="current-pw">
+          <input type="password" id="current-pw" name="current-pw" autocomplete="current-password">
         </div>
         <div class="field">
           <label for="new-pw">New Password</label>
-          <input type="password" id="new-pw">
+          <input type="password" id="new-pw" name="new-pw" autocomplete="new-password">
         </div>
         <div class="field">
           <label for="confirm-pw">Confirm New Password</label>
-          <input type="password" id="confirm-pw">
+          <input type="password" id="confirm-pw" name="confirm-pw" autocomplete="new-password">
         </div>
         <div class="pw-req">
           <p>Password must have:</p>
@@ -193,7 +193,7 @@ $workspacePath = $config['workspace_path'];
         <h3>Workspace Configuration</h3>
         <div class="field">
           <label for="set-workspace">Workspace Path</label>
-          <input type="text" id="set-workspace" placeholder="/root/.openclaw/workspace">
+          <input type="text" id="set-workspace" name="set-workspace" placeholder="/root/.openclaw/workspace" autocomplete="off">
           <div class="field-hint">Path to your OpenClaw workspace directory containing .md files</div>
         </div>
         <button class="modal-btn" onclick="saveSettings()">Save Workspace Settings</button>
@@ -204,7 +204,7 @@ $workspacePath = $config['workspace_path'];
         <h3>Network Security</h3>
         <div class="field">
           <label for="set-network">Network Restriction</label>
-          <select id="set-network">
+          <select id="set-network" name="set-network">
             <option value="none">None (allow all)</option>
             <option value="tailscale">Tailscale only</option>
             <option value="custom">Custom IP ranges</option>
@@ -212,7 +212,7 @@ $workspacePath = $config['workspace_path'];
         </div>
         <div class="field" id="ip-field" style="display:none">
           <label for="set-ips">Allowed IP Ranges (CIDRs)</label>
-          <input type="text" id="set-ips" placeholder="192.168.1.0/24, 10.0.0.0/8">
+          <input type="text" id="set-ips" name="set-ips" placeholder="192.168.1.0/24, 10.0.0.0/8" autocomplete="off">
           <div class="field-hint">Comma-separated CIDR ranges</div>
         </div>
         <button class="modal-btn" onclick="saveSettings()">Save Security Settings</button>
@@ -223,16 +223,16 @@ $workspacePath = $config['workspace_path'];
         <h3>Application Settings</h3>
         <div class="field">
           <label for="set-title">App Title</label>
-          <input type="text" id="set-title" placeholder="OpenMind">
+          <input type="text" id="set-title" name="set-title" placeholder="OpenMind" autocomplete="off">
         </div>
         <div class="field">
           <label for="set-backup">Backup Path</label>
-          <input type="text" id="set-backup" placeholder="./backups">
+          <input type="text" id="set-backup" name="set-backup" placeholder="./backups" autocomplete="off">
           <div class="field-hint">Where file backups are stored before edits/deletes</div>
         </div>
         <div class="field">
           <label for="set-session">Session Lifetime (seconds)</label>
-          <input type="number" id="set-session" placeholder="86400" min="<?= $config['min_session_lifetime'] ?>">
+          <input type="number" id="set-session" name="set-session" placeholder="86400" min="<?= $config['min_session_lifetime'] ?>" autocomplete="off">
           <div class="field-hint">How long login sessions last (default: 86400 = 24 hours)</div>
         </div>
         <button class="modal-btn" onclick="saveSettings()">Save App Settings</button>
