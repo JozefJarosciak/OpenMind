@@ -89,29 +89,21 @@ function get_config(): array {
 
 /**
  * Detect the OpenClaw agent name from the directory structure.
- * Checks Docker mount at /openclaw-home, then derives from workspace path.
+ * Lightweight fallback — the real bot name detection (Telegram API)
+ * happens in the Docker entrypoint or installer, which write to config.php.
  */
 function detectAgentName(array $config): ?string {
-    $candidates = [];
-
-    // Docker: openclaw home mounted at /openclaw-home
-    if (is_dir('/openclaw-home/agents')) {
-        $candidates[] = '/openclaw-home';
-    }
-
-    // Manual install: workspace is typically ~/.openclaw/workspace
+    $homes = [];
+    if (is_dir('/openclaw-home/agents')) $homes[] = '/openclaw-home';
     $ws = rtrim($config['workspace_path'], '/');
     if (basename($ws) === 'workspace') {
         $parent = dirname($ws);
-        if (is_dir($parent . '/agents')) {
-            $candidates[] = $parent;
-        }
+        if (is_dir($parent . '/agents')) $homes[] = $parent;
     }
 
-    foreach ($candidates as $home) {
-        $dirs = glob($home . '/agents/*', GLOB_ONLYDIR);
+    foreach ($homes as $home) {
+        $dirs = @glob($home . '/agents/*', GLOB_ONLYDIR);
         if (!$dirs) continue;
-
         foreach ($dirs as $d) {
             if (basename($d) === 'main') return 'main';
         }
