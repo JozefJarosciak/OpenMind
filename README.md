@@ -1,8 +1,38 @@
 # OpenMind for OpenClaw
 
-Interactive mindmap workspace viewer for [OpenClaw](https://openclaw.ai). Turns your OpenClaw workspace of markdown files into a navigable, editable mindmap — with a built-in WYSIWYG editor. All without npm, a bundler, or a build step. (Yes, really.)
+**Give your [OpenClaw](https://openclaw.ai) agent a brain you can actually see.**
+
+OpenMind turns your OpenClaw workspace into a fully interactive, live-editable mind map. No more digging through markdown files and logs — just visual, navigable structure. Edit any memory node, hot-swap logic on the fly, search across everything, and manage your agent's knowledge in real time.
+
+All without npm, a bundler, or a build step.
 
 ![OpenMind Screenshot](docs/screenshot.png)
+
+> **Early Alpha** — This project is under active development. It works, but expect rough edges and breaking changes. Bug reports and pull requests are welcome.
+>
+> **Want to help?** We need contributors — whether that's code, testing, documentation, or just spreading the word. If you find OpenMind useful, tell someone about it. Word of mouth matters more than anything at this stage.
+
+---
+
+## Table of Contents
+
+- [Quick Install via OpenClaw](#quick-install-via-openclaw)
+- [Manual Installation](#manual-installation)
+  - [Linux](#linux-ubuntu-debian-fedora-arch-etc)
+  - [macOS](#macos)
+  - [Windows](#windows)
+  - [Bare Metal (no Docker)](#bare-metal-no-docker)
+- [Docker Environment Variables](#docker-environment-variables)
+- [Managing Your Installation](#managing-your-installation)
+- [Features](#features)
+- [Configuration Reference](#configuration-reference)
+- [Tailscale Access](#tailscale-access)
+- [Project Structure](#project-structure)
+- [Security](#security)
+- [Disclaimer](#disclaimer)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -324,18 +354,18 @@ docker compose up -d --build
 - **Delete** a file with a confirmation prompt
 - All operations create a timestamped backup first
 
-### Authentication & Security
+### Authentication & Access Control
 - **SQLite3-based** multi-user authentication with bcrypt password hashing
 - Secure session cookies: `HttpOnly`, `Secure` (when HTTPS), `SameSite=Strict`, strict mode
-- **"Remember me"** option extends session to 30 days
+- **"Remember me"** option for persistent login across browser sessions
 - Password change from the Settings UI with real-time strength validation
 - **Network restriction** modes: none, Tailscale-only, or custom CIDR ranges
-- All file paths validated with `realpath()` to prevent directory traversal; filenames sanitized
+- Login rate limiting: 10 attempts per 15-minute window per IP
 
 ### Auto-Detected Bot Name
-- On startup, OpenMind reads your OpenClaw config and detects your Telegram bot's display name
+- On startup, OpenMind reads your OpenClaw config and detects your bot's display name
 - The bot name is shown as the root node, page title, and header — not a generic "OpenMind" label
-- Falls back to the agent directory name, then to a configured `app_title`
+- Detection priority: `IDENTITY.md` in workspace, then Telegram Bot API, then agent directory name
 
 ### Settings Modal
 Four tabs, all editable from the UI:
@@ -406,31 +436,105 @@ OpenMind/
 │   ├── settings-api.php   # Settings read (GET) and write (POST) — live-rewrites config.php
 │   └── setup.php          # First-run browser setup wizard
 ├── public/
-│   ├── css/               # main, themes, designs, components
+│   ├── css/               # main, themes, designs, components, chat
 │   └── js/                # app, search, context-menu, settings
 ├── setup/
 │   └── manage_users.php   # CLI user management tool
 ├── install.sh             # Interactive installer (Docker + bare metal)
-├── LICENSE                # MIT
+├── LICENSE                # AGPL-3.0
 └── README.md
 ```
 
 ---
 
-## Security Notes
+## Security
 
-- `config.php`, `auth.db`, and `.env` are gitignored and must never be committed
-- Passwords are hashed with bcrypt (PHP `PASSWORD_BCRYPT`)
+### What OpenMind does to protect your installation
+
+- Passwords are hashed with bcrypt (`PASSWORD_BCRYPT`) — never stored in plain text
 - Sessions use `HttpOnly`, `Secure` (when HTTPS), and `SameSite=Strict` cookies with strict mode enabled
-- Session ID is regenerated on successful login to prevent fixation
+- Session ID is regenerated on successful login to prevent session fixation
 - Login rate limiting: 10 attempts per 15-minute window per IP
-- All file read/write operations validate paths with `realpath()` — no `../../../etc/passwd` for you
+- All file read/write operations validate paths with `realpath()` to enforce strict path constraints
 - Filenames are sanitized to alphanumeric plus `._- ` characters only; `.md` extension is enforced
-- The Docker container and Nginx configs deny direct access to `config.php`, `auth.db`, `.env`, and `backups/`
-- Consider Tailscale or custom CIDR restriction for an extra layer of access control
+- The Docker container and Nginx configs restrict direct access to `config.php`, `auth.db`, `.env`, and `backups/`
+- `config.php`, `auth.db`, and `.env` are gitignored and must never be committed
+
+### What you should do
+
+- **Use HTTPS** in production — either via a reverse proxy (Nginx, Caddy) or Tailscale (which handles TLS automatically)
+- **Use Tailscale or CIDR restriction** if your server is on the public internet — don't rely on password auth alone
+- **Use a strong admin password** — the installer enforces minimum complexity requirements
+- **Keep OpenMind updated** — use the in-app Update tab or `git pull && docker compose up -d --build`
+- **Review your firewall rules** — OpenMind should not be exposed on ports you don't intend to open
+- **Back up your data** — OpenMind creates automatic backups before edits, but maintain your own backup strategy for the workspace and `auth.db`
+
+---
+
+## Disclaimer
+
+**This software is provided "as is", without warranty of any kind, express or implied.**
+
+By installing or using OpenMind, you acknowledge and agree to the following:
+
+1. **No Warranty.** The authors and contributors make no guarantees regarding the reliability, availability, accuracy, or fitness for purpose of this software.
+
+2. **Use at Your Own Risk.** You are solely responsible for evaluating whether this software is appropriate for your environment and use case. The authors and contributors accept no liability for any damages, data loss, service interruptions, or other adverse outcomes arising from the use, deployment, misconfiguration, or inability to use this software.
+
+3. **Deployment is Your Responsibility.** While reasonable effort has been made to follow established best practices, no software is guaranteed to be free of defects. You are responsible for properly configuring and maintaining your installation — including network setup, access controls, TLS/HTTPS, firewall rules, credential management, and keeping the software up to date.
+
+4. **Compliance.** You are responsible for ensuring your use of this software complies with all applicable laws and regulations in your jurisdiction.
+
+5. **Early-Stage Software.** OpenMind is in early alpha. APIs, configuration formats, and behavior may change without notice between versions.
+
+The authors and contributors shall not be held liable under any legal theory for any direct, indirect, incidental, special, exemplary, consequential, or punitive damages arising out of the use of or inability to use this software.
+
+---
+
+## Contributing
+
+OpenMind is open source and contributions are welcome. Whether it's a bug fix, a new feature, better documentation, or just a typo correction — every contribution helps.
+
+### How to contribute
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b my-feature`)
+3. Commit your changes
+4. Push to your fork and open a Pull Request
+
+### Ways to help beyond code
+
+- **Report bugs** — open an issue with steps to reproduce
+- **Suggest features** — ideas and feedback are valuable
+- **Spread the word** — tell other OpenClaw users about OpenMind, post about it, share it in communities you're part of
+- **Write documentation** — tutorials, guides, or translations
+
+### Contribution expectations
+
+OpenMind is licensed under AGPL-3.0. By submitting a pull request, you agree that your contribution will be licensed under the same terms. The AGPL requires that anyone who modifies this software and makes it available over a network (which is the primary use case for OpenMind) must share their modifications under the same license. This ensures that improvements made by the community benefit everyone.
 
 ---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+**GNU Affero General Public License v3.0 (AGPL-3.0)**
+
+OpenMind is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+The AGPL-3.0 was chosen specifically because OpenMind is a web application. Under this license:
+
+- You are free to use, modify, and distribute OpenMind
+- If you modify OpenMind and make it available over a network (e.g., run a modified version on your server), you must make your modified source code available under the same license
+- This ensures that improvements to OpenMind are shared back with the community
+
+See [LICENSE](LICENSE) for the full license text.
+
+---
+
+## Acknowledgments
+
+- [OpenClaw](https://openclaw.ai) — the AI agent framework that OpenMind is built for
+- [steipete](https://github.com/steipete) — for the foundational work that inspired this project
+- [jsMind](https://github.com/nicedoc/jsMind) — mindmap rendering engine
+- [Toast UI Editor](https://github.com/nhn/tui.editor) — WYSIWYG markdown editor
+- [Catppuccin](https://github.com/catppuccin) — color scheme inspiration
